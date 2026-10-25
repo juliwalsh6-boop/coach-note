@@ -38,7 +38,11 @@ export function nextPendingSet(exercises: SessionExerciseWithSets[], afterSetId:
 
 export type SetDraft = { weight: string; reps: string };
 
-/** 入力欄の初期値: 完了済みなら実績、未完了なら目標（前のセットで重量を変えていればその重量） */
+/**
+ * 入力欄の初期値: 完了済みなら実績、未完了なら目標。
+ * 直前に終えたセットとコーチの目標重量が同じなら、そのセットで実際に使った重量を引き継ぐ
+ * （セットごとに重量を変える指示のときは、指示どおりの重量を出す）。
+ */
 export function draftFor(exercise: SessionExerciseWithSets, set: SetLog): SetDraft {
   if (isSetDone(set)) {
     return {
@@ -49,7 +53,8 @@ export function draftFor(exercise: SessionExerciseWithSets, set: SetLog): SetDra
   const previousDone = [...exercise.sets]
     .filter((s) => s.set_number < set.set_number && isSetDone(s))
     .sort((a, b) => b.set_number - a.set_number)[0];
-  const weight = previousDone ? previousDone.actual_weight_kg : set.target_weight_kg;
+  const carry = previousDone !== undefined && previousDone.target_weight_kg === set.target_weight_kg;
+  const weight = carry ? previousDone.actual_weight_kg : set.target_weight_kg;
   return {
     weight: weight == null ? "" : formatKg(weight),
     reps: set.target_reps == null ? "" : String(set.target_reps),

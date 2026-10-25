@@ -271,7 +271,7 @@ select tests.throws(
   '種目 0 件のメニューは保存できない', '22023', 'exercises_required');
 select tests.throws(
   format($q$select public.save_workout_plan(null, %L, 'x', null, null, '[{"name":"a","target_reps":1,"target_sets":99}]')$q$, tests.uid('c1')),
-  'セット数の上限を超えると保存できない', '23514');
+  'セット数の上限を超えると保存できない', '22023', 'invalid_set_targets');
 
 select public.save_workout_plan(
   null, tests.uid('c2'), '下半身', null, null,
@@ -445,6 +445,92 @@ select tests.ok(exists (select 1 from public.get_exercise_name_suggestions() whe
 
 select tests.login('t2');
 select tests.ok(not exists (select 1 from public.get_exercise_name_suggestions()), 'T2 の候補に T1 の種目は出ない');
+
+-- ---------------------------------------------------------------------
+-- 12. セットごとの目標
+-- ---------------------------------------------------------------------
+select tests.login('t1');
+select public.save_workout_plan(
+  null, tests.uid('c1'), 'ピラミッド', null, null,
+  '[
+    {"name": "デッドリフト", "sets": [{"weight_kg": 100, "reps": 8}, {"weight_kg": 110, "reps": 5}, {"weight_kg": 120.255, "reps": 3}], "rest_seconds": 180},
+    {"name": "懸垂", "sets": [{"weight_kg": null, "reps": 10}, {"reps": 8, "weight_kg": 5}], "rest_seconds": 120},
+    {"name": "プランク", "target_weight_kg": null, "target_reps": 60, "target_sets": 2, "rest_seconds": 60}
+  ]'::jsonb
+) as plan_pyr \gset
+
+select id as ex_dead from public.plan_exercises where plan_id = :'plan_pyr' and position = 1 \gset
+select tests.ok((select target_sets from public.plan_exercises where id = :'ex_dead') = 3, 'セットごとの目標: セット数は配列の長さになる');
+select tests.ok((select target_weight_kg = 100 and target_reps = 8 from public.plan_exercises where id = :'ex_dead'), 'セットごとの目標: 種目の目標には 1 セット目の値が入る');
+select tests.ok(
+  (select set_targets::text from public.plan_exercises where id = :'ex_dead')
+    = '[{"reps": 8, "weight_kg": 100}, {"reps": 5, "weight_kg": 110}, {"reps": 3, "weight_kg": 120.26}]',
+  'セットごとの目標が保存される（重量は小数第2位に丸め、余分な 0 は付けない）');
+select tests.ok((select set_targets -> 0 -> 'weight_kg' from public.plan_exercises where plan_id = :'plan_pyr' and position = 2) = 'null'::jsonb, '自重のセット（重量 null）も保存できる');
+select tests.ok(
+  (select set_targets from public.plan_exercises where plan_id = :'plan_pyr' and position = 3)
+    = '[{"weight_kg": null, "reps": 60}, {"weight_kg": null, "reps": 60}]'::jsonb,
+  '旧形式（sets なし）は全セット同じ目標として保存される');
+
+select tests.throws(format($q$select public.save_workout_plan(null, %L, 'x', null, null, '[{"name":"a","sets":[]}]')$q$, tests.uid('c1')),
+  'セット 0 件は保存できない', '22023', 'invalid_set_targets');
+select tests.throws(format($q$select public.save_workout_plan(null, %L, 'x', null, null, '[{"name":"a","sets":[{"reps":0}]}]')$q$, tests.uid('c1')),
+  '回数 0 は保存できない', '22023', 'invalid_set_targets');
+select tests.throws(format($q$select public.save_workout_plan(null, %L, 'x', null, null, '[{"name":"a","sets":[{"reps":8.5}]}]')$q$, tests.uid('c1')),
+  '回数が小数だと保存できない', '22023', 'invalid_set_targets');
+select tests.throws(format($q$select public.save_workout_plan(null, %L, 'x', null, null, '[{"name":"a","sets":[{"reps":"8"}]}]')$q$, tests.uid('c1')),
+  '回数が文字列だと保存できない', '22023', 'invalid_set_targets');
+select tests.throws(format($q$select public.save_workout_plan(null, %L, 'x', null, null, '[{"name":"a","sets":[{"weight_kg":-1,"reps":8}]}]')$q$, tests.uid('c1')),
+  '重量がマイナスだと保存できない', '22023', 'invalid_set_targets');
+select tests.throws(format($q$select public.save_workout_plan(null, %L, 'x', null, null, '[{"name":"a","sets":[{"weight_kg":"60","reps":8}]}]')$q$, tests.uid('c1')),
+  '重量が文字列だと保存できない', '22023', 'invalid_set_targets');
+select tests.throws(format($q$select public.save_workout_plan(null, %L, 'x', null, null, '[{"name":"a","sets":{"reps":8}}]')$q$, tests.uid('c1')),
+  'sets が配列でないと保存できない', '22023', 'invalid_set_targets');
+select tests.throws(
+  format($q$select public.save_workout_plan(null, %L, 'x', null, null, %L)$q$, tests.uid('c1'),
+    jsonb_build_array(jsonb_build_object('name', 'a', 'sets', (select jsonb_agg(jsonb_build_object('reps', 5)) from generate_series(1, 21))))),
+  'セット数の上限（20）を超えると保存できない', '22023', 'invalid_set_targets');
+
+select tests.throws(format($q$update public.plan_exercises set set_targets = '[{"weight_kg": 1, "reps": 1}]' where id = %L$q$, :'ex_dead'),
+  'セット数と合わない set_targets は直接書き込めない', '23514');
+select tests.throws(format($q$update public.plan_exercises set set_targets = '[{"reps": 1}, {"reps": 1}, {"reps": "x"}]' where id = %L$q$, :'ex_dead'),
+  '形式が不正な set_targets は直接書き込めない', '23514');
+
+select tests.login('t2');
+select tests.affects(format($q$update public.plan_exercises set set_targets = null where id = %L$q$, :'ex_dead'), 0, 'T2 は T1 のメニューのセットごとの目標を書き換えられない');
+
+select tests.login('c2');
+select tests.ok(not exists (select 1 from public.plan_exercises where id = :'ex_dead'), 'C2 には C1 のセットごとの目標が見えない');
+
+select tests.login('c1');
+select tests.affects(format($q$update public.plan_exercises set set_targets = null where id = %L$q$, :'ex_dead'), 0, 'C1 はセットごとの目標を書き換えられない');
+select tests.ok((select jsonb_array_length(set_targets) from public.plan_exercises where id = :'ex_dead') = 3, 'C1 には自分のメニューのセットごとの目標が見える');
+
+select public.start_workout_session(:'plan_pyr', current_date) as s_pyr \gset
+select se.id as se_dead from public.session_exercises se where se.session_id = :'s_pyr' and se.position = 1 \gset
+select tests.ok(
+  (select array_agg(array[target_weight_kg, target_reps::numeric] order by set_number) from public.set_logs where session_exercise_id = :'se_dead')
+    = array[array[100, 8], array[110, 5], array[120.26, 3]]::numeric[],
+  '開始するとセット行にセットごとの目標（重量・回数）が入る');
+select tests.ok(
+  (select array_agg(sl.target_weight_kg order by sl.set_number)
+     from public.set_logs sl join public.session_exercises se on se.id = sl.session_exercise_id
+    where se.session_id = :'s_pyr' and se.position = 2)
+    is not distinct from array[null, 5]::numeric[],
+  '自重のセット（重量なし）もセット行に反映される');
+select tests.ok((select (public.add_set(:'se_dead')).target_weight_kg) = 120.26, 'セット追加では直前のセットの目標をコピーする');
+select tests.ok((select target_reps from public.set_logs where session_exercise_id = :'se_dead' and set_number = 4) = 3, '追加したセットの回数も直前のセットと同じ');
+
+-- set_targets が無い（この変更より前に作られた）種目は、種目の目標で全セットを作る
+reset role;
+update public.plan_exercises set set_targets = null where plan_id = :'plan_pyr' and position = 3;
+set role authenticated;
+select public.start_workout_session(:'plan_pyr', current_date + 1) as s_pyr2 \gset
+select tests.ok(
+  (select count(*)
+     from public.set_logs sl join public.session_exercises se on se.id = sl.session_exercise_id
+    where se.session_id = :'s_pyr2' and se.position = 3 and sl.target_reps = 60 and sl.target_weight_kg is null) = 2,
+  'set_targets が無い種目は種目の目標で全セット作られる');
 
 reset role;
 select 'ALL TESTS PASSED' as result;

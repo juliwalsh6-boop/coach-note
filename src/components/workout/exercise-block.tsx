@@ -6,6 +6,7 @@ import { WEIGHT_STEP_KG } from "@/lib/config";
 import { cn } from "@/lib/cn";
 import { formatDateShort } from "@/lib/dates";
 import { formatRest, formatSet, formatTarget } from "@/lib/format";
+import { sessionTargetSummary } from "@/lib/set-targets";
 import { isSetDone, stepValue, type SetDraft } from "@/lib/workout";
 import type { PreviousRecord, SessionExerciseWithSets, SetLog } from "@/types/app";
 import { SetText } from "@/components/ui/set-text";
@@ -84,10 +85,7 @@ export function ExerciseBlock({
           </h2>
           <p className="mt-0.5 text-sm text-ash">
             目標{" "}
-            <SetText
-              className="num font-bold text-chalk"
-              text={formatTarget(exercise.target_weight_kg, exercise.target_reps, exercise.target_sets)}
-            />
+            <SetText className="num font-bold text-chalk" text={sessionTargetSummary(exercise)} />
           </p>
           <p className="text-xs text-ash">休憩 {formatRest(exercise.rest_seconds)}</p>
         </div>
@@ -248,10 +246,16 @@ function SetEditor({
           <span className="num text-base">SET {set.set_number}</span>
           {done ? <span className="ml-2 text-xs text-plate-green-bright">完了済み</span> : null}
         </p>
-        <p className="text-xs text-ash">
-          {previousText ? "前回 " : "目標 "}
-          <SetText className="num" text={previousText ?? formatTarget(set.target_weight_kg, set.target_reps)} />
-        </p>
+        <div className="text-right text-xs leading-5 text-ash">
+          <p>
+            目標 <SetText className="num font-bold text-chalk" text={formatTarget(set.target_weight_kg, set.target_reps)} />
+          </p>
+          {previousText ? (
+            <p>
+              前回 <SetText className="num" text={previousText} />
+            </p>
+          ) : null}
+        </div>
       </div>
       <div className="space-y-2">
         <Stepper
@@ -262,7 +266,9 @@ function SetEditor({
           placeholder={set.target_weight_kg == null ? "自重" : undefined}
           onChange={(weight) => onDraftChange({ weight })}
           onStep={(delta) =>
-            onDraftChange({ weight: stepValue(draft.weight, delta * WEIGHT_STEP_KG, exercise.target_weight_kg ?? 0) })
+            onDraftChange({
+              weight: stepValue(draft.weight, delta * WEIGHT_STEP_KG, set.target_weight_kg ?? exercise.target_weight_kg ?? 0),
+            })
           }
         />
         <Stepper
@@ -271,7 +277,9 @@ function SetEditor({
           inputMode="numeric"
           value={draft.reps}
           onChange={(reps) => onDraftChange({ reps })}
-          onStep={(delta) => onDraftChange({ reps: stepValue(draft.reps, delta, exercise.target_reps ?? 0) })}
+          onStep={(delta) =>
+            onDraftChange({ reps: stepValue(draft.reps, delta, set.target_reps ?? exercise.target_reps ?? 0) })
+          }
         />
       </div>
       {done ? (

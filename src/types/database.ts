@@ -232,6 +232,7 @@ export type Database = {
           target_weight_kg: number | null;
           target_reps: number;
           target_sets: number;
+          set_targets: Json | null;
           rest_seconds: number;
           note: string | null;
           created_at: string;
@@ -246,6 +247,7 @@ export type Database = {
           target_weight_kg?: number | null;
           target_reps: number;
           target_sets: number;
+          set_targets?: Json | null;
           rest_seconds?: number;
           note?: string | null;
           created_at?: string;
@@ -260,6 +262,7 @@ export type Database = {
           target_weight_kg?: number | null;
           target_reps?: number;
           target_sets?: number;
+          set_targets?: Json | null;
           rest_seconds?: number;
           note?: string | null;
           created_at?: string;

@@ -3,7 +3,7 @@
 トレーナーとクライアントが共有して使う、筋トレ記録アプリの MVP です。
 スマホ（iPhone の Safari）で片手で操作することを前提に作っています。
 
-- **トレーナー**: クライアントの招待、今日のコンディション一覧、メニュー作成・編集・並べ替え、トレーニング結果と体調の履歴の確認、コメント
+- **トレーナー**: クライアントの招待、今日のコンディション一覧、メニュー作成・編集・並べ替え（種目ごとに「全セット同じ」か「セットごとに重量・回数を変える」かを選べます）、トレーニング結果と体調の履歴の確認、コメント
 - **クライアント**: 朝のチェックイン（睡眠・疲労度・筋肉痛・ストレス・やる気を 1〜10 で入力）、今日のメニューの実施、セットごとの重量・回数の記録、休憩タイマー（音つき）、履歴、トレーナーのコメントの確認
 - **ごほうびの演出**: セット完了 → 1種目完了 → トレーニング完了 → 自己ベスト更新の順に、音と演出がだんだん豪華になります。トレーニング完了時は全画面で、紙吹雪・ファンファーレ・総挙上量のカウントアップ・今週の回数・連続週数・自己ベストを表示します
 
@@ -19,8 +19,11 @@
 
 1. [supabase.com](https://supabase.com) で新しいプロジェクトを作成します（Region は「Northeast Asia (Tokyo)」がおすすめ）。
 2. 左メニューの **SQL Editor** → **New query** を開きます。
-3. `supabase/migrations/20261025000000_init.sql` の中身をすべて貼り付けて **Run** を押します。
-   「Success. No rows returned」と表示されれば完了です。テーブル・アクセス制御（RLS）・関数がまとめて作られます。
+3. `supabase/migrations/` の SQL ファイルを、ファイル名の順に 1 つずつ貼り付けて **Run** を押します。
+   - `20261025000000_init.sql`（テーブル・アクセス制御（RLS）・関数）
+   - `20261026000000_per_set_targets.sql`（セットごとの目標）
+
+   それぞれ「Success. No rows returned」と表示されれば完了です。
 
 > Supabase CLI を使う場合は `supabase link --project-ref <プロジェクトID>` → `supabase db push` でも同じ内容が適用されます。
 
@@ -102,12 +105,13 @@ http://localhost:3000 を開きます。
 
 ### RLS のテスト（任意）
 
-`supabase/tests/rls_test.sql` に、他人のデータが見えない・書き換えられないことを確かめるテストが 134 項目あります。PostgreSQL 16 で次のように実行できます（最後に ROLLBACK するのでデータは残りません）。
+`supabase/tests/rls_test.sql` に、他人のデータが見えない・書き換えられないことを確かめるテストがあります（セットごとの目標の検証を含みます）。PostgreSQL 16 で次のように実行できます（最後に ROLLBACK するのでデータは残りません）。
 
 ```bash
 createdb coach_test
 psql -d coach_test -v ON_ERROR_STOP=1 -f supabase/tests/supabase_shim.sql
 psql -d coach_test -v ON_ERROR_STOP=1 -f supabase/migrations/20261025000000_init.sql
+psql -d coach_test -v ON_ERROR_STOP=1 -f supabase/migrations/20261026000000_per_set_targets.sql
 psql -d coach_test -v ON_ERROR_STOP=1 -f supabase/tests/rls_test.sql
 ```
 
@@ -207,6 +211,7 @@ GitHub の `main` に push すると、`.github/workflows/build.yml` が型チ�
 ## 今後の拡張に向けた設計メモ
 
 - **目標と実績を分けて保存**: `set_logs` に目標（`target_*`）と実績（`actual_*`）を別々に持たせています。RPE 用の列（`rpe`）も用意済みです。
+- **セットごとの目標**: メニューの種目は `plan_exercises.set_targets` に `[{"weight_kg": 60, "reps": 10}, ...]` の形でセットごとの目標を持ちます（形式は DB の CHECK 制約で検証）。トレーニング開始時に各セットの `set_logs.target_*` へコピーされます。RPE やセットの種類（ウォームアップなど）を足すときも、この配列の項目を増やすだけで済みます。
 - **種目ごとの推移**: 種目名を正規化した `exercise_key`（全角/半角・大文字小文字の違いを吸収）で、同じ種目の記録をまとめて取り出せます。重量の推移グラフなどに使えます。
 - **体調とトレーニングの関係**: `checkins.checkin_date` と `workout_sessions.performed_date` を日付で結合すれば、「睡眠とパフォーマンス」「疲労度とボリューム」「体重の推移」などを出せます。
 - **メニューを変えても過去の記録は変わらない**: トレーニング開始時にメニューの内容をコピーして記録するため、あとでメニューを編集・削除しても過去の結果はそのまま残ります。

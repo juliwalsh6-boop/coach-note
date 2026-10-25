@@ -1,7 +1,8 @@
 import { cn } from "@/lib/cn";
 import { formatDateLong, formatDuration, formatTime, minutesBetween } from "@/lib/dates";
 import { SetText } from "@/components/ui/set-text";
-import { formatKg, formatNumber, formatRest, formatSet, formatTarget, totalVolume } from "@/lib/format";
+import { formatKg, formatNumber, formatRest, formatSet, totalVolume } from "@/lib/format";
+import { sessionTargetSummary } from "@/lib/set-targets";
 import { countProgress, isSetDone } from "@/lib/workout";
 import type { SessionDetail, SetLog } from "@/types/app";
 
@@ -37,7 +38,7 @@ export function SessionView({ session }: { session: SessionDetail }) {
               <span>{exercise.name}</span>
             </h3>
             <p className="mt-0.5 text-xs text-ash">
-              目標 <SetText text={formatTarget(exercise.target_weight_kg, exercise.target_reps, exercise.target_sets)} />
+              目標 <SetText text={sessionTargetSummary(exercise)} />
               <span className="mx-1.5 text-line">/</span>
               休憩 {formatRest(exercise.rest_seconds)}
             </p>

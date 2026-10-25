@@ -1,3 +1,4 @@
+import { toSetTargetJson, type SetTarget } from "@/lib/set-targets";
 import type { PlanSummary, PlanWithExercises } from "@/types/app";
 import type { DB } from "./db";
 
@@ -5,9 +6,8 @@ export type PlanExerciseInput = {
   /** 既存の種目なら id（並べ替えても記録の紐づけを保つため） */
   id: string | null;
   name: string;
-  target_weight_kg: number | null;
-  target_reps: number;
-  target_sets: number;
+  /** セットごとの目標（配列の長さ = セット数、1〜20） */
+  sets: SetTarget[];
   rest_seconds: number;
   note: string | null;
 };
@@ -50,15 +50,20 @@ export async function getPlanWithExercises(db: DB, planId: string): Promise<Plan
 
 /** メニューと種目をまとめて保存（新規なら作成）。保存したメニューの id を返す */
 export async function savePlan(db: DB, input: PlanInput): Promise<string> {
-  const exercises = input.exercises.map((e) => ({
-    id: e.id,
-    name: e.name,
-    target_weight_kg: e.target_weight_kg,
-    target_reps: e.target_reps,
-    target_sets: e.target_sets,
-    rest_seconds: e.rest_seconds,
-    note: e.note,
-  }));
+  const exercises = input.exercises.map((e) => {
+    const first = e.sets[0];
+    return {
+      id: e.id,
+      name: e.name,
+      sets: toSetTargetJson(e.sets),
+      // 1 セット目の値とセット数（一覧表示用。DB 側でも sets から同じ値を入れ直す）
+      target_weight_kg: first?.weightKg ?? null,
+      target_reps: first?.reps ?? 0,
+      target_sets: e.sets.length,
+      rest_seconds: e.rest_seconds,
+      note: e.note,
+    };
+  });
   const { data, error } = await db.rpc("save_workout_plan", {
     p_plan_id: input.planId,
     p_client_id: input.clientId,

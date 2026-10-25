@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useRef, useState } from "react";
+import { Fragment, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { IconArrowDown, IconArrowUp, IconCalendar, IconPlus, IconTrash } from "@/components/ui/icons";
+import { IconArrowDown, IconArrowUp, IconCalendar, IconMinus, IconPlus, IconTrash } from "@/components/ui/icons";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Notice } from "@/components/ui/notice";
 import { useToast } from "@/components/ui/toaster";
@@ -14,17 +14,24 @@ import { deletePlan, savePlan, type PlanExerciseInput } from "@/lib/data/plans";
 import { isValidISODate } from "@/lib/dates";
 import { toErrorMessage } from "@/lib/errors";
 import { COMMON_EXERCISES } from "@/lib/exercises";
-import { formatKg, formatRest, parseDecimal, parseInteger } from "@/lib/format";
+import { formatKg, formatRest, formatTarget, parseDecimal, parseInteger } from "@/lib/format";
+import { isUniform, MAX_SETS_PER_EXERCISE, planSetTargets, uniformTargets, type SetTarget } from "@/lib/set-targets";
 import { createClient } from "@/lib/supabase/client";
 import type { PlanExercise, PlanWithExercises } from "@/types/app";
+
+/** セットごとの入力 1 行 */
+type EditorSet = { key: string; weight: string; reps: string };
 
 type EditorExercise = {
   key: string;
   id: string | null;
   name: string;
+  /** same = 全セット同じ（重量・回数・セット数を1つずつ）、perSet = セットごとに重量・回数を入れる */
+  mode: "same" | "perSet";
   weight: string;
   reps: string;
   sets: string;
+  rows: EditorSet[];
   rest: number;
   note: string;
   showNote: boolean;
@@ -33,21 +40,34 @@ type EditorExercise = {
 type FieldErrors = Record<string, string>;
 
 const REST_OPTIONS = [0, 30, 45, 60, 75, 90, 105, 120, 150, 180, 240, 300];
+const DEFAULT_SET_COUNT = 3;
 
 let keySeed = 0;
-function nextKey(): string {
+function nextKey(prefix = "ex"): string {
   keySeed += 1;
-  return `ex-${keySeed}`;
+  return `${prefix}-${keySeed}`;
+}
+
+function weightText(value: number | null): string {
+  return value == null ? "" : formatKg(value);
+}
+
+function makeRows(count: number, weight: string, reps: string): EditorSet[] {
+  return Array.from({ length: count }, () => ({ key: nextKey("set"), weight, reps }));
 }
 
 function fromPlanExercise(exercise: PlanExercise, keepId: boolean): EditorExercise {
+  const targets = planSetTargets(exercise);
+  const first = targets[0] ?? { weightKg: exercise.target_weight_kg, reps: exercise.target_reps };
   return {
     key: nextKey(),
     id: keepId ? exercise.id : null,
     name: exercise.name,
-    weight: exercise.target_weight_kg == null ? "" : formatKg(exercise.target_weight_kg),
-    reps: String(exercise.target_reps),
-    sets: String(exercise.target_sets),
+    mode: isUniform(targets) ? "same" : "perSet",
+    weight: weightText(first.weightKg),
+    reps: String(first.reps),
+    sets: String(targets.length),
+    rows: targets.map((t) => ({ key: nextKey("set"), weight: weightText(t.weightKg), reps: String(t.reps) })),
     rest: exercise.rest_seconds,
     note: exercise.note ?? "",
     showNote: Boolean(exercise.note),
@@ -55,7 +75,81 @@ function fromPlanExercise(exercise: PlanExercise, keepId: boolean): EditorExerci
 }
 
 function emptyExercise(rest = DEFAULT_REST_SECONDS): EditorExercise {
-  return { key: nextKey(), id: null, name: "", weight: "", reps: "10", sets: "3", rest, note: "", showNote: false };
+  return {
+    key: nextKey(),
+    id: null,
+    name: "",
+    mode: "same",
+    weight: "",
+    reps: "10",
+    sets: String(DEFAULT_SET_COUNT),
+    rows: [],
+    rest,
+    note: "",
+    showNote: false,
+  };
+}
+
+/** 「セット」欄の値をセットごとの行数にする（空・不正なら 3、範囲外は 1〜20 に収める） */
+function rowCountFrom(setsText: string): number {
+  const parsed = parseInteger(setsText);
+  if (parsed === null || Number.isNaN(parsed)) return DEFAULT_SET_COUNT;
+  return Math.min(MAX_SETS_PER_EXERCISE, Math.max(1, parsed));
+}
+
+/** 「60」と「60.0」を同じ値として比べる */
+function sameNumber(a: string, b: string): boolean {
+  const x = parseDecimal(a);
+  const y = parseDecimal(b);
+  if (x === null || y === null) return x === y;
+  if (Number.isNaN(x) || Number.isNaN(y)) return a.trim() === b.trim();
+  return x === y;
+}
+
+function rowsAreUniform(rows: EditorSet[]): boolean {
+  const [first, ...rest] = rows;
+  return !first || rest.every((r) => sameNumber(r.weight, first.weight) && sameNumber(r.reps, first.reps));
+}
+
+/** 重量（空 = 自重 = null）。不正なら undefined */
+function readWeight(text: string): number | null | undefined {
+  const value = parseDecimal(text);
+  if (value === null) return null;
+  if (Number.isNaN(value) || value < 0 || value >= 1000) return undefined;
+  return value;
+}
+
+/** 回数（1〜999）。不正なら undefined */
+function readReps(text: string): number | undefined {
+  const value = parseInteger(text);
+  if (value === null || Number.isNaN(value) || value < 1 || value > 999) return undefined;
+  return value;
+}
+
+function validateSame(e: EditorExercise, found: FieldErrors): SetTarget[] {
+  const weight = readWeight(e.weight);
+  const reps = readReps(e.reps);
+  const sets = parseInteger(e.sets);
+  if (weight === undefined) found[`${e.key}.weight`] = "0〜999";
+  if (reps === undefined) found[`${e.key}.reps`] = "1〜999";
+  if (sets === null || Number.isNaN(sets) || sets < 1 || sets > MAX_SETS_PER_EXERCISE) {
+    found[`${e.key}.sets`] = `1〜${MAX_SETS_PER_EXERCISE}`;
+    return [];
+  }
+  if (weight === undefined || reps === undefined) return [];
+  return uniformTargets({ weightKg: weight, reps }, sets);
+}
+
+function validatePerSet(e: EditorExercise, found: FieldErrors): SetTarget[] {
+  const targets: SetTarget[] = [];
+  for (const row of e.rows) {
+    const weight = readWeight(row.weight);
+    const reps = readReps(row.reps);
+    if (weight === undefined) found[`${e.key}.${row.key}.weight`] = "重量は0〜999";
+    if (reps === undefined) found[`${e.key}.${row.key}.reps`] = "回数は1〜999";
+    if (weight !== undefined && reps !== undefined) targets.push({ weightKg: weight, reps });
+  }
+  return targets;
 }
 
 type PlanEditorProps = {
@@ -96,15 +190,78 @@ export function PlanEditor({ clientId, clientName, today, plan, template = null,
   const backHref = `/trainer/clients/${clientId}`;
   const suggestionList = Array.from(new Set([...suggestions, ...COMMON_EXERCISES]));
 
+  function dropErrors(match: (errorKey: string) => boolean) {
+    setErrors((current) => {
+      const keys = Object.keys(current).filter(match);
+      if (keys.length === 0) return current;
+      const next = { ...current };
+      for (const key of keys) delete next[key];
+      return next;
+    });
+  }
+
+  function updateExercise(key: string, change: (exercise: EditorExercise) => EditorExercise) {
+    setExercises((current) => current.map((e) => (e.key === key ? change(e) : e)));
+  }
+
   function update(key: string, patch: Partial<EditorExercise>) {
-    setExercises((current) => current.map((e) => (e.key === key ? { ...e, ...patch } : e)));
-    if (Object.keys(patch).some((field) => errors[`${key}.${field}`])) {
-      setErrors((current) => {
-        const next = { ...current };
-        for (const field of Object.keys(patch)) delete next[`${key}.${field}`];
-        return next;
+    updateExercise(key, (e) => ({ ...e, ...patch }));
+    const fields = Object.keys(patch).map((field) => `${key}.${field}`);
+    dropErrors((errorKey) => fields.includes(errorKey));
+  }
+
+  function updateRow(exerciseKey: string, rowKey: string, patch: Partial<Omit<EditorSet, "key">>) {
+    updateExercise(exerciseKey, (e) => ({
+      ...e,
+      rows: e.rows.map((row) => (row.key === rowKey ? { ...row, ...patch } : row)),
+    }));
+    const fields = Object.keys(patch).map((field) => `${exerciseKey}.${rowKey}.${field}`);
+    dropErrors((errorKey) => fields.includes(errorKey));
+  }
+
+  function addRow(exerciseKey: string) {
+    updateExercise(exerciseKey, (e) => {
+      if (e.rows.length >= MAX_SETS_PER_EXERCISE) return e;
+      const last = e.rows[e.rows.length - 1];
+      return { ...e, rows: [...e.rows, { key: nextKey("set"), weight: last?.weight ?? "", reps: last?.reps ?? "10" }] };
+    });
+  }
+
+  function removeLastRow(exerciseKey: string) {
+    updateExercise(exerciseKey, (e) => (e.rows.length <= 1 ? e : { ...e, rows: e.rows.slice(0, -1) }));
+  }
+
+  /** 全セット同じ → セットごと（今の重量・回数をセット数ぶん並べる） */
+  function switchToPerSet(exercise: EditorExercise) {
+    update(exercise.key, {
+      mode: "perSet",
+      rows: makeRows(rowCountFrom(exercise.sets), exercise.weight.trim(), exercise.reps.trim()),
+    });
+    const fields = ["weight", "reps", "sets"].map((field) => `${exercise.key}.${field}`);
+    dropErrors((errorKey) => fields.includes(errorKey));
+  }
+
+  /** セットごと → 全セット同じ（違う値があれば 1 セット目にそろえてよいか確認） */
+  async function switchToSame(exercise: EditorExercise) {
+    const first = exercise.rows[0];
+    if (first && !rowsAreUniform(exercise.rows)) {
+      const weight = readWeight(first.weight);
+      const reps = readReps(first.reps);
+      const preview = formatTarget(weight ?? null, reps ?? null);
+      const ok = await confirm({
+        title: "全セットをそろえますか？",
+        message: `2セット目以降の重量・回数を、1セット目（${preview}）と同じにします。`,
+        confirmLabel: "そろえる",
       });
+      if (!ok) return;
     }
+    update(exercise.key, {
+      mode: "same",
+      weight: first?.weight ?? exercise.weight,
+      reps: first?.reps ?? exercise.reps,
+      sets: String(exercise.rows.length || rowCountFrom(exercise.sets)),
+    });
+    dropErrors((errorKey) => errorKey.startsWith(`${exercise.key}.set-`));
   }
 
   function move(index: number, delta: -1 | 1) {
@@ -141,21 +298,11 @@ export function PlanEditor({ clientId, clientName, today, plan, template = null,
     if (exercises.length === 0) general = "種目を1つ以上追加してください";
 
     const input: PlanExerciseInput[] = exercises.map((e) => {
-      const weight = parseDecimal(e.weight);
-      const reps = parseInteger(e.reps);
-      const sets = parseInteger(e.sets);
       if (!e.name.trim()) found[`${e.key}.name`] = "種目名を入力してください";
-      if (weight !== null && (Number.isNaN(weight) || weight < 0 || weight >= 1000)) {
-        found[`${e.key}.weight`] = "0〜999";
-      }
-      if (reps === null || Number.isNaN(reps) || reps < 1 || reps > 999) found[`${e.key}.reps`] = "1〜999";
-      if (sets === null || Number.isNaN(sets) || sets < 1 || sets > 20) found[`${e.key}.sets`] = "1〜20";
       return {
         id: e.id,
         name: e.name.trim(),
-        target_weight_kg: weight !== null && !Number.isNaN(weight) ? weight : null,
-        target_reps: reps ?? 0,
-        target_sets: sets ?? 0,
+        sets: e.mode === "same" ? validateSame(e, found) : validatePerSet(e, found),
         rest_seconds: e.rest,
         note: e.note.trim() === "" ? null : e.note.trim(),
       };
@@ -236,13 +383,7 @@ export function PlanEditor({ clientId, clientName, today, plan, template = null,
               value={title}
               onChange={(e) => {
                 setTitle(e.target.value);
-                if (errors.title) {
-                  setErrors((current) => {
-                    const next = { ...current };
-                    delete next.title;
-                    return next;
-                  });
-                }
+                dropErrors((errorKey) => errorKey === "title");
               }}
             />
             {errors.title ? <p className="text-xs text-plate-red-bright">{errors.title}</p> : null}
@@ -336,33 +477,51 @@ export function PlanEditor({ clientId, clientName, today, plan, template = null,
                   </div>
                 </div>
 
-                <div className="mt-3 grid grid-cols-3 gap-2 pl-8 max-[359px]:pl-0">
-                  <NumberField
-                    label="重量"
-                    unit="kg"
-                    inputMode="decimal"
-                    placeholder="自重"
-                    value={exercise.weight}
-                    error={errors[`${exercise.key}.weight`]}
-                    onChange={(weight) => update(exercise.key, { weight })}
+                {exercise.mode === "same" ? (
+                  <>
+                    <div className="mt-3 grid grid-cols-3 gap-2 pl-8 max-[359px]:pl-0">
+                      <NumberField
+                        label="重量"
+                        unit="kg"
+                        inputMode="decimal"
+                        placeholder="自重"
+                        value={exercise.weight}
+                        error={errors[`${exercise.key}.weight`]}
+                        onChange={(weight) => update(exercise.key, { weight })}
+                      />
+                      <NumberField
+                        label="回数"
+                        unit="回"
+                        inputMode="numeric"
+                        value={exercise.reps}
+                        error={errors[`${exercise.key}.reps`]}
+                        onChange={(reps) => update(exercise.key, { reps })}
+                      />
+                      <NumberField
+                        label="セット"
+                        unit=""
+                        inputMode="numeric"
+                        value={exercise.sets}
+                        error={errors[`${exercise.key}.sets`]}
+                        onChange={(sets) => update(exercise.key, { sets })}
+                      />
+                    </div>
+                    <div className="mt-1 pl-8 max-[359px]:pl-0">
+                      <ModeSwitch onClick={() => switchToPerSet(exercise)}>セットごとに重量・回数を変える</ModeSwitch>
+                    </div>
+                  </>
+                ) : (
+                  <SetRowsEditor
+                    exerciseKey={exercise.key}
+                    exerciseNumber={index + 1}
+                    rows={exercise.rows}
+                    errors={errors}
+                    onChangeRow={(rowKey, patch) => updateRow(exercise.key, rowKey, patch)}
+                    onAddRow={() => addRow(exercise.key)}
+                    onRemoveLastRow={() => removeLastRow(exercise.key)}
+                    onMakeSame={() => void switchToSame(exercise)}
                   />
-                  <NumberField
-                    label="回数"
-                    unit="回"
-                    inputMode="numeric"
-                    value={exercise.reps}
-                    error={errors[`${exercise.key}.reps`]}
-                    onChange={(reps) => update(exercise.key, { reps })}
-                  />
-                  <NumberField
-                    label="セット"
-                    unit=""
-                    inputMode="numeric"
-                    value={exercise.sets}
-                    error={errors[`${exercise.key}.sets`]}
-                    onChange={(sets) => update(exercise.key, { sets })}
-                  />
-                </div>
+                )}
 
                 <div className="mt-3 flex items-center gap-2 pl-8 max-[359px]:pl-0">
                   <label className="shrink-0 text-xs font-bold text-ash" htmlFor={`rest-${exercise.key}`}>
@@ -481,6 +640,99 @@ export function PlanEditor({ clientId, clientName, today, plan, template = null,
         </div>
       </div>
     </>
+  );
+}
+
+/** 「全セット同じ／セットごと」を切り替える文字ボタン */
+function ModeSwitch({ onClick, children }: { onClick: () => void; children: string }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="min-h-10 text-left text-sm font-bold text-plate-blue-bright underline underline-offset-4"
+    >
+      {children}
+    </button>
+  );
+}
+
+/** セットごとの重量・回数の入力（1 行 = 1 セット） */
+function SetRowsEditor({
+  exerciseKey,
+  exerciseNumber,
+  rows,
+  errors,
+  onChangeRow,
+  onAddRow,
+  onRemoveLastRow,
+  onMakeSame,
+}: {
+  exerciseKey: string;
+  exerciseNumber: number;
+  rows: EditorSet[];
+  errors: FieldErrors;
+  onChangeRow: (rowKey: string, patch: Partial<Omit<EditorSet, "key">>) => void;
+  onAddRow: () => void;
+  onRemoveLastRow: () => void;
+  onMakeSame: () => void;
+}) {
+  return (
+    <div className="mt-3 pl-8 max-[359px]:pl-0">
+      <div className="grid grid-cols-[2.5rem_minmax(0,1fr)_minmax(0,1fr)] items-center gap-x-2 gap-y-2">
+        <span className="text-center text-[11px] font-bold text-ash">セット</span>
+        <span className="text-xs font-bold text-ash">
+          重量<span className="ml-1 font-normal">kg</span>
+        </span>
+        <span className="text-xs font-bold text-ash">
+          回数<span className="ml-1 font-normal">回</span>
+        </span>
+        {rows.map((row, rowIndex) => {
+          const setNumber = rowIndex + 1;
+          const weightError = errors[`${exerciseKey}.${row.key}.weight`];
+          const repsError = errors[`${exerciseKey}.${row.key}.reps`];
+          return (
+            <Fragment key={row.key}>
+              <span className="num text-center text-base font-bold text-ash">{setNumber}</span>
+              <input
+                className="field num px-2 text-center text-lg font-bold"
+                inputMode="decimal"
+                autoComplete="off"
+                placeholder="自重"
+                aria-label={`${exerciseNumber}番目の種目の${setNumber}セット目の重量（kg）`}
+                aria-invalid={weightError ? true : undefined}
+                value={row.weight}
+                onChange={(e) => onChangeRow(row.key, { weight: e.target.value })}
+              />
+              <input
+                className="field num px-2 text-center text-lg font-bold"
+                inputMode="numeric"
+                autoComplete="off"
+                aria-label={`${exerciseNumber}番目の種目の${setNumber}セット目の回数`}
+                aria-invalid={repsError ? true : undefined}
+                value={row.reps}
+                onChange={(e) => onChangeRow(row.key, { reps: e.target.value })}
+              />
+              {weightError || repsError ? (
+                <p className="col-span-2 col-start-2 -mt-1 text-xs text-plate-red-bright">
+                  {[weightError, repsError].filter(Boolean).join("、")}
+                </p>
+              ) : null}
+            </Fragment>
+          );
+        })}
+      </div>
+      <div className="mt-2 flex flex-wrap gap-1">
+        <Button variant="ghost" size="sm" disabled={rows.length >= MAX_SETS_PER_EXERCISE} onClick={onAddRow}>
+          <IconPlus size={16} />
+          セット追加
+        </Button>
+        <Button variant="ghost" size="sm" disabled={rows.length <= 1} onClick={onRemoveLastRow}>
+          <IconMinus size={16} />
+          セット削除
+        </Button>
+      </div>
+      <ModeSwitch onClick={onMakeSame}>全セット同じにする</ModeSwitch>
+    </div>
   );
 }
 

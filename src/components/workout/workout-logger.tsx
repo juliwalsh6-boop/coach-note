@@ -75,7 +75,10 @@ function weightText(value: number | null): string {
   return value == null ? "" : formatKg(value);
 }
 
-/** 重量を変えて完了したら、まだ触っていない後続セットの重量にも反映する */
+/**
+ * 重量を変えて完了したら、まだ触っていない後続セットの重量にも反映する。
+ * 反映するのはコーチの目標重量が同じセットだけ（セットごとに重量が違う指示は崩さない）。
+ */
 function carryWeight(
   drafts: Record<string, SetDraft>,
   exercise: SessionExerciseWithSets,
@@ -85,6 +88,7 @@ function carryWeight(
   const next = { ...drafts };
   for (const set of exercise.sets) {
     if (set.set_number <= completed.set_number || set.completed_at !== null) continue;
+    if (set.target_weight_kg !== completed.target_weight_kg) continue;
     const draft = next[set.id];
     if (draft && draft.weight === weightText(set.target_weight_kg)) {
       next[set.id] = { ...draft, weight: weightText(weight) };

@@ -18,6 +18,7 @@ const DB_MESSAGES: Record<string, string> = {
   invalid_date: "日付を判定できませんでした。端末の日付・時刻の設定を確認してください。",
   exercise_not_found: "種目が見つかりません。画面を再読み込みしてください。",
   too_many_sets: "1種目のセットは20セットまでです。",
+  invalid_set_targets: "セットごとの目標を確認してください（回数は1〜999回、重量は0〜999kg、セットは1〜20）。",
   set_not_found: "セットが見つかりません。画面を再読み込みしてください。",
   set_already_completed: "完了済みのセットは削除できません。",
   last_set_required: "最低1セットは必要です。",
