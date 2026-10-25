@@ -1,0 +1,56 @@
+import type { ClientInvite, DashboardRow } from "@/types/app";
+import type { DB } from "./db";
+
+/** トレーナーのホーム: 担当クライアント + 指定日のチェックイン + 直近のトレーニング */
+export async function getDashboard(db: DB, date: string): Promise<DashboardRow[]> {
+  const { data, error } = await db.rpc("get_trainer_dashboard", { p_date: date });
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function listInvites(db: DB): Promise<ClientInvite[]> {
+  const { data, error } = await db
+    .from("client_invites")
+    .select("*")
+    .order("created_at", { ascending: false })
+    .limit(50);
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function createInvite(db: DB, label: string | null): Promise<ClientInvite> {
+  const { data, error } = await db.rpc("create_client_invite", { p_label: label });
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteInvite(db: DB, inviteId: string): Promise<void> {
+  const { error } = await db.from("client_invites").delete().eq("id", inviteId);
+  if (error) throw error;
+}
+
+export type InviteStatus = "valid" | "used" | "expired";
+
+export async function getInviteInfo(
+  db: DB,
+  code: string,
+): Promise<{ trainerName: string; status: InviteStatus } | null> {
+  const { data, error } = await db.rpc("get_invite_info", { p_code: code });
+  if (error) throw error;
+  const row = data?.[0];
+  if (!row) return null;
+  const status: InviteStatus = row.status === "used" || row.status === "expired" ? row.status : "valid";
+  return { trainerName: row.trainer_name, status };
+}
+
+export async function acceptInvite(db: DB, code: string): Promise<string> {
+  const { data, error } = await db.rpc("accept_invite", { p_code: code });
+  if (error) throw error;
+  return data;
+}
+
+export function inviteStatusOf(invite: Pick<ClientInvite, "used_at" | "expires_at">, now: Date = new Date()): InviteStatus {
+  if (invite.used_at) return "used";
+  if (new Date(invite.expires_at).getTime() <= now.getTime()) return "expired";
+  return "valid";
+}

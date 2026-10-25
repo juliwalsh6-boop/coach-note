@@ -1,0 +1,505 @@
+@import "tailwindcss";
+
+/*
+ * デザイントークン
+ * ジムの鉄（iron / steel / rubber）とチョーク（chalk）を土台に、
+ * 色は競技用プレートのカラーコード（20kg=青, 15kg=黄, 10kg=緑, 25kg=赤）を意味づけして使う。
+ *   青: 操作・進行中   緑: 完了・良好   黄: 注意   赤: 疲労高め・削除
+ */
+@theme {
+  --color-iron: #141619;
+  --color-steel: #1d2024;
+  --color-rubber: #282c31;
+  --color-line: #343a41;
+  --color-chalk: #eef0ec;
+  --color-ash: #9aa1a9;
+
+  --color-plate-blue: #2f63e6;
+  --color-plate-blue-bright: #8fb0ff;
+  --color-plate-green: #34b46a;
+  --color-plate-green-bright: #63d491;
+  --color-plate-yellow: #f2c230;
+  --color-plate-red: #e5484d;
+  --color-plate-red-bright: #ff8085;
+
+  --font-sans: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic UI", Meiryo, system-ui,
+    sans-serif;
+  --font-num: var(--font-archivo), "Hiragino Sans", system-ui, sans-serif;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    background-color: var(--color-iron);
+    color-scheme: dark;
+  }
+
+  body {
+    min-height: 100dvh;
+    background-color: var(--color-iron);
+    color: var(--color-chalk);
+    font-family: var(--font-sans);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior-y: none;
+  }
+
+  /* iOS で入力時に画面がズームしないよう 16px 以上にする */
+  input,
+  select,
+  textarea {
+    font-size: max(16px, 1em);
+  }
+
+  button {
+    touch-action: manipulation;
+    cursor: pointer;
+  }
+
+  button:disabled {
+    cursor: default;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-plate-blue-bright);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background-color: color-mix(in srgb, var(--color-plate-blue) 55%, transparent);
+  }
+}
+
+/* 数字を幅広で太く見せる（重量・回数・タイマー） */
+@utility num {
+  font-family: var(--font-num);
+  font-stretch: 118%;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+@utility panel {
+  background-color: var(--color-steel);
+  border: 1px solid var(--color-line);
+  border-radius: 20px;
+}
+
+@utility field {
+  width: 100%;
+  min-height: 48px;
+  border-radius: 12px;
+  border: 1px solid var(--color-line);
+  background-color: var(--color-rubber);
+  padding: 10px 14px;
+  color: var(--color-chalk);
+  transition: border-color 120ms ease;
+
+  &::placeholder {
+    color: color-mix(in srgb, var(--color-ash) 75%, transparent);
+  }
+
+  &:focus {
+    outline: none;
+    border-color: var(--color-plate-blue-bright);
+  }
+
+  &[aria-invalid="true"] {
+    border-color: var(--color-plate-red);
+  }
+}
+
+@utility pt-safe {
+  padding-top: env(safe-area-inset-top);
+}
+
+@utility pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+@utility scroll-mt-focus {
+  scroll-margin-top: 88px;
+  scroll-margin-bottom: 200px;
+}
+
+@keyframes rest-done-pulse {
+  0% {
+    background-color: var(--color-plate-green);
+  }
+  100% {
+    background-color: var(--color-steel);
+  }
+}
+
+@utility animate-rest-done {
+  animation: rest-done-pulse 1.2s ease-out 1;
+}
+
+@keyframes sheet-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* 確認シートが下から出てくる動き */
+@utility animate-sheet-in {
+  animation: sheet-in 160ms ease-out both;
+}
+
+/* ---------------------------------------------------------------
+ * ごほうびの演出（セット完了 → 種目完了 → トレーニング完了 → 自己ベスト）
+ * --------------------------------------------------------------- */
+@keyframes pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  55% {
+    opacity: 1;
+    transform: scale(1.22);
+  }
+  80% {
+    transform: scale(0.94);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@utility animate-pop {
+  animation: pop 460ms cubic-bezier(0.3, 1.4, 0.6, 1) both;
+}
+
+@keyframes ring-burst {
+  0% {
+    opacity: 0.9;
+    transform: scale(0.8);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(2.4);
+  }
+}
+
+@utility animate-ring-burst {
+  animation: ring-burst 700ms ease-out both;
+}
+
+@keyframes flash-green {
+  0% {
+    background-color: color-mix(in srgb, var(--color-plate-green) 30%, transparent);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+@utility animate-flash-green {
+  animation: flash-green 900ms ease-out both;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@utility animate-rise {
+  animation: rise 420ms cubic-bezier(0.2, 0.9, 0.3, 1) both;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@utility animate-fade-in {
+  animation: fade-in 220ms ease-out both;
+}
+
+@keyframes title-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@utility animate-title-pop {
+  animation: title-pop 520ms cubic-bezier(0.3, 1.3, 0.6, 1) both;
+}
+
+/* プレートが上から落ちてきて「ドン」と止まる */
+@keyframes plate-in {
+  0% {
+    opacity: 0;
+    transform: translateY(-140px) scale(0.6) rotate(-150deg);
+  }
+  55% {
+    opacity: 1;
+    transform: translateY(8px) scale(1.08) rotate(10deg);
+  }
+  75% {
+    transform: translateY(-4px) scale(0.97) rotate(-3deg);
+  }
+  100% {
+    transform: none;
+  }
+}
+
+@utility animate-plate-in {
+  animation: plate-in 640ms cubic-bezier(0.25, 1, 0.5, 1) both;
+}
+
+@keyframes shockwave {
+  0% {
+    opacity: 0.85;
+    transform: scale(0.7);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(2.3);
+  }
+}
+
+@utility animate-shockwave {
+  animation: shockwave 900ms cubic-bezier(0.1, 0.7, 0.3, 1) both;
+}
+
+@keyframes check-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@utility animate-check-draw {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: check-draw 380ms cubic-bezier(0.65, 0, 0.35, 1) forwards;
+}
+
+@keyframes rays-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@utility animate-rays {
+  animation: rays-spin 18s linear infinite;
+}
+
+@keyframes stamp {
+  0% {
+    opacity: 0;
+    transform: scale(1.35);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(0.97);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@utility animate-stamp {
+  animation: stamp 420ms cubic-bezier(0.3, 1.2, 0.6, 1) both;
+}
+
+@keyframes shine {
+  0% {
+    transform: translateX(-120%) skewX(-18deg);
+  }
+  100% {
+    transform: translateX(420%) skewX(-18deg);
+  }
+}
+
+@utility animate-shine {
+  animation: shine 900ms ease-in-out both;
+}
+
+@keyframes glow {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-plate-green) 55%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 10px color-mix(in srgb, var(--color-plate-green) 0%, transparent);
+  }
+}
+
+@utility animate-glow {
+  animation: glow 1.6s ease-in-out infinite;
+}
+
+/* トレーニング完了の「溜め」: プレートが少しずつふくらみ、震えがだんだん激しくなる */
+@property --shake {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 0px;
+}
+
+@keyframes charge-grow {
+  from {
+    transform: scale(0.5);
+    filter: brightness(0.7) saturate(0.85);
+    --shake: 0px;
+  }
+  to {
+    transform: scale(0.66);
+    filter: brightness(1.45) saturate(1.15);
+    --shake: 5px;
+  }
+}
+
+@utility animate-charge {
+  animation: charge-grow 1s cubic-bezier(0.55, 0, 0.9, 0.55) both;
+}
+
+@keyframes jitter {
+  0%,
+  100% {
+    translate: 0 0;
+  }
+  25% {
+    translate: var(--shake) calc(var(--shake) * -0.6);
+  }
+  50% {
+    translate: calc(var(--shake) * -0.8) calc(var(--shake) * 0.5);
+  }
+  75% {
+    translate: calc(var(--shake) * 0.6) var(--shake);
+  }
+}
+
+@utility animate-jitter {
+  animation: jitter 70ms linear infinite;
+}
+
+/* 外から光の輪が吸い込まれていく */
+@keyframes converge {
+  0% {
+    opacity: 0;
+    transform: scale(2.6);
+  }
+  60% {
+    opacity: 0.85;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.75);
+  }
+}
+
+@utility animate-converge {
+  animation: converge 460ms cubic-bezier(0.5, 0, 0.9, 0.5) both;
+}
+
+@keyframes charge-glow {
+  from {
+    opacity: 0.12;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@utility animate-charge-glow {
+  animation: charge-glow 1s ease-in both;
+}
+
+/* 「ギャン！」: 一気に大きくなって着地 */
+@keyframes slam {
+  0% {
+    transform: scale(0.66);
+    filter: brightness(2.2);
+  }
+  45% {
+    transform: scale(1.2);
+    filter: brightness(1.3);
+  }
+  70% {
+    transform: scale(0.95);
+  }
+  100% {
+    transform: scale(1);
+    filter: brightness(1);
+  }
+}
+
+@utility animate-slam {
+  animation: slam 420ms cubic-bezier(0.2, 1.4, 0.4, 1) both;
+}
+
+@keyframes flash {
+  from {
+    opacity: 0.75;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@utility animate-flash {
+  animation: flash 320ms ease-out both;
+}
+
+@keyframes impact-shake {
+  0%,
+  100% {
+    translate: 0 0;
+  }
+  15% {
+    translate: -9px 5px;
+  }
+  30% {
+    translate: 8px -6px;
+  }
+  45% {
+    translate: -6px 4px;
+  }
+  60% {
+    translate: 4px -3px;
+  }
+  75% {
+    translate: -2px 2px;
+  }
+}
+
+@utility animate-impact-shake {
+  animation: impact-shake 380ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
+}
