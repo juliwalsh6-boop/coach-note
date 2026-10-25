@@ -198,6 +198,8 @@ public/
 | `npm run typecheck` | 型チェック |
 | `npm run lint` | ESLint |
 
+GitHub の `main` に push すると、`.github/workflows/build.yml` が型チェックと本番ビルドを自動で実行します。結果は GitHub の「Actions」タブで確認できます。
+
 型定義 `src/types/database.ts` は手書きですが、Supabase CLI の `supabase gen types typescript` と同じ形式なので、テーブルを追加したときは生成し直して置き換えられます。
 
 ---

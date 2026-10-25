@@ -1,0 +1,50 @@
+# push のたびに「型チェック」と「本番ビルド」を自動で実行して、壊れていないか確認します。
+# 結果は GitHub の Actions タブで見られます（Vercel への公開とは別です）。
+name: Build check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # ブラウザにも配られる公開用の値だけを置いています（秘密の鍵は置かないこと）。
+      NEXT_PUBLIC_SUPABASE_URL: https://fjkvpthkmozsdpwgnuep.supabase.co
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_T23rTti1eLXI3W-nLYWWXA_cqFHvVp6
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund 2>&1 | tee install.log
+      - name: Type check
+        run: npm run typecheck 2>&1 | tee typecheck.log
+      - name: Build
+        run: npm run build 2>&1 | tee build.log
+      - name: Show failure details
+        if: failure()
+        run: |
+          # 失敗したときはログの最後を注釈として残し、Actions の画面からすぐ読めるようにする
+          for f in install.log typecheck.log build.log; do
+            [ -s "$f" ] || continue
+            body=$(tail -n 150 "$f" | sed -e 's/%/%25/g' -e 's/\r/%0D/g' | awk 'BEGIN { ORS = "%0A" } { print }')
+            echo "::error title=${f}::${body}"
+          done
