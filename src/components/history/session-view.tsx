@@ -1,18 +1,23 @@
 import { cn } from "@/lib/cn";
 import { formatDateLong, formatDuration, formatTime, minutesBetween } from "@/lib/dates";
+import { IconCheck } from "@/components/ui/icons";
 import { SetText } from "@/components/ui/set-text";
 import { formatKg, formatNumber, formatRest, formatSet, totalVolume } from "@/lib/format";
-import { sessionTargetSummary } from "@/lib/set-targets";
+import { sessionTargetSummary, setDeviation, type SetDeviation } from "@/lib/set-targets";
 import { countProgress, isSetDone } from "@/lib/workout";
 import type { SessionDetail, SetLog } from "@/types/app";
+import { DeviationChips } from "./deviation-chips";
 
-/** トレーニング 1 回分の結果（目標と実績を並べて表示） */
+/** トレーニング 1 回分の結果（目標と実績を並べ、違ったところは差も表示） */
 export function SessionView({ session }: { session: SessionDetail }) {
   const progress = countProgress(session.exercises);
-  const volume = totalVolume(session.exercises.flatMap((e) => e.sets));
+  const sets = session.exercises.flatMap((e) => e.sets);
+  const volume = totalVolume(sets);
   const completed = session.status === "completed";
   const duration =
     completed && session.completed_at ? formatDuration(minutesBetween(session.started_at, session.completed_at)) : null;
+  const doneSets = sets.filter(isSetDone);
+  const deviated = doneSets.filter((s) => setDeviation(s) !== null).length;
 
   return (
     <div className="space-y-4">
@@ -24,6 +29,23 @@ export function SessionView({ session }: { session: SessionDetail }) {
           <Stat label="総挙上量" value={`${formatNumber(volume)}`} unit="kg" />
           <Stat label="時間" value={duration ?? (completed ? "—" : "実施中")} />
         </dl>
+        {doneSets.length > 0 ? (
+          deviated === 0 ? (
+            <p className="mt-3 flex items-center gap-1.5 text-sm font-bold text-plate-green-bright">
+              <IconCheck size={16} strokeWidth={2.6} />
+              実施したセットはすべて目標どおり
+            </p>
+          ) : (
+            <p className="mt-3 text-sm">
+              <span className="font-bold text-plate-yellow">
+                目標と違ったセット <span className="num">{deviated}</span>
+              </span>
+              <span className="text-ash">
+                （<span className="num">{doneSets.length}</span>セット中）
+              </span>
+            </p>
+          )
+        ) : null}
         <p className="mt-3 text-xs text-ash">
           開始 {formatTime(session.started_at)}
           {session.completed_at ? ` 〜 完了 ${formatTime(session.completed_at)}` : ""}
@@ -81,14 +103,18 @@ function Stat({ label, value, unit }: { label: string; value: string; unit?: str
   );
 }
 
+function toneOf(delta: number | null, forceDown = false): string | undefined {
+  if (forceDown) return "text-plate-yellow";
+  if (delta === null) return undefined;
+  return delta > 0 ? "text-plate-blue-bright" : "text-plate-yellow";
+}
+
 function SetResultRow({ set }: { set: SetLog }) {
   const done = isSetDone(set);
-  const repsShort = done && set.target_reps != null && set.actual_reps != null && set.actual_reps < set.target_reps;
-  const weightDiffers =
-    done && set.target_weight_kg != null && set.actual_weight_kg != null && set.actual_weight_kg !== set.target_weight_kg;
+  const deviation: SetDeviation | null = setDeviation(set);
 
   return (
-    <tr className="border-t border-line/60">
+    <tr className="border-t border-line/60 align-top">
       <td className="num py-2.5 pl-4 text-ash">{set.set_number}</td>
       <td className="py-2.5 text-ash">
         <SetText className="num" text={formatSet(set.target_weight_kg, set.target_reps)} />
@@ -96,11 +122,12 @@ function SetResultRow({ set }: { set: SetLog }) {
       <td className="num py-2.5 pr-4 text-right font-bold">
         {done ? (
           <>
-            <span className={cn(weightDiffers && "text-plate-blue-bright")}>
+            <span className={toneOf(deviation?.weightDeltaKg ?? null, deviation?.bodyweightInstead)}>
               {set.actual_weight_kg == null ? "自重" : `${formatKg(set.actual_weight_kg)}kg`}
             </span>
             <span className="mx-[0.25em] font-sans font-normal text-ash">×</span>
-            <span className={cn(repsShort && "text-plate-yellow")}>{set.actual_reps ?? "—"}</span>
+            <span className={toneOf(deviation?.repsDelta ?? null)}>{set.actual_reps ?? "—"}</span>
+            {deviation ? <DeviationChips deviation={deviation} align="end" className={cn("mt-1")} /> : null}
           </>
         ) : (
           <span className="font-normal text-ash">未実施</span>

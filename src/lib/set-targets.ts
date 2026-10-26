@@ -1,4 +1,4 @@
-import type { PlanExercise, SessionExerciseWithSets } from "@/types/app";
+import type { PlanExercise, SessionExerciseWithSets, SetLog } from "@/types/app";
 import type { Json } from "@/types/database";
 import { formatKg, formatTarget } from "./format";
 
@@ -94,4 +94,90 @@ export function sessionTargetSummary(exercise: SessionExerciseWithSets): string 
     return formatTarget(exercise.target_weight_kg, exercise.target_reps, exercise.target_sets);
   }
   return formatTargetSummary(planned, exercise.target_sets);
+}
+
+// ---------------------------------------------------------------------
+// 目標と実績の差
+// ---------------------------------------------------------------------
+
+type SetForDeviation = Pick<SetLog, "target_weight_kg" | "target_reps" | "actual_weight_kg" | "actual_reps" | "completed_at">;
+
+/** 完了したセットの、目標との差（目標どおりなら作らない） */
+export type SetDeviation = {
+  /** 重量の差（実績 − 目標, kg）。目標が自重で重量を付けた場合は付けた重量。差がなければ null */
+  weightDeltaKg: number | null;
+  /** 目標は重量ありだったが、自重（重量なし）で行った */
+  bodyweightInstead: boolean;
+  /** 回数の差（実績 − 目標）。差がなければ null */
+  repsDelta: number | null;
+};
+
+function round2(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
+/** 目標と実績の差。未完了のセットや、目標どおりのセットは null */
+export function setDeviation(set: SetForDeviation): SetDeviation | null {
+  if (set.completed_at === null) return null;
+
+  const target = set.target_weight_kg;
+  const actual = set.actual_weight_kg;
+  let weightDeltaKg: number | null = null;
+  let bodyweightInstead = false;
+  if (target !== null && actual !== null) {
+    const delta = round2(actual - target);
+    if (delta !== 0) weightDeltaKg = delta;
+  } else if (target === null && actual !== null && actual > 0) {
+    weightDeltaKg = round2(actual);
+  } else if (target !== null && target > 0 && actual === null) {
+    bodyweightInstead = true;
+  }
+
+  const repsDelta =
+    set.target_reps !== null && set.actual_reps !== null && set.actual_reps !== set.target_reps
+      ? set.actual_reps - set.target_reps
+      : null;
+
+  if (weightDeltaKg === null && !bodyweightInstead && repsDelta === null) return null;
+  return { weightDeltaKg, bodyweightInstead, repsDelta };
+}
+
+/** 目標と違ったセットの数（完了したセットだけを数える） */
+export function countDeviations(sets: readonly SetForDeviation[]): number {
+  return sets.reduce((count, set) => (setDeviation(set) ? count + 1 : count), 0);
+}
+
+export type DeviationLabel = {
+  /** 画面に出す短い表記（+2.5kg / −2回 / 自重） */
+  text: string;
+  /** 読み上げ用の文 */
+  description: string;
+  /** 目標より多い（重い）なら up、少ない（軽い）なら down */
+  direction: "up" | "down";
+};
+
+/** 差を「+2.5kg」「−2回」のような表記にする */
+export function deviationLabels(deviation: SetDeviation): DeviationLabel[] {
+  const labels: DeviationLabel[] = [];
+  if (deviation.bodyweightInstead) {
+    labels.push({ text: "自重", description: "目標の重量ではなく自重で実施", direction: "down" });
+  } else if (deviation.weightDeltaKg !== null) {
+    const up = deviation.weightDeltaKg > 0;
+    const amount = formatKg(Math.abs(deviation.weightDeltaKg));
+    labels.push({
+      text: `${up ? "+" : "−"}${amount}kg`,
+      description: `目標より${amount}kg${up ? "重い" : "軽い"}`,
+      direction: up ? "up" : "down",
+    });
+  }
+  if (deviation.repsDelta !== null) {
+    const up = deviation.repsDelta > 0;
+    const amount = Math.abs(deviation.repsDelta);
+    labels.push({
+      text: `${up ? "+" : "−"}${amount}回`,
+      description: `目標より${amount}回${up ? "多い" : "少ない"}`,
+      direction: up ? "up" : "down",
+    });
+  }
+  return labels;
 }

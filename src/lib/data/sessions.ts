@@ -1,5 +1,6 @@
 import { addDaysISO } from "@/lib/dates";
 import { totalVolume } from "@/lib/format";
+import { countDeviations } from "@/lib/set-targets";
 import { computePersonalRecords, weekStats, type RecordSet, type WorkoutCelebrationData } from "@/lib/records";
 import type {
   PreviousRecordMap,
@@ -98,7 +99,9 @@ export async function discardSession(db: DB, sessionId: string): Promise<void> {
 export async function listSessions(db: DB, clientId: string, limit = 30): Promise<SessionSummary[]> {
   const { data, error } = await db
     .from("workout_sessions")
-    .select("*, session_exercises(id), set_logs(actual_weight_kg, actual_reps, completed_at)")
+    .select(
+      "*, session_exercises(id), set_logs(actual_weight_kg, actual_reps, target_weight_kg, target_reps, completed_at)",
+    )
     .eq("client_id", clientId)
     .order("performed_date", { ascending: false })
     .order("started_at", { ascending: false })
@@ -110,6 +113,7 @@ export async function listSessions(db: DB, clientId: string, limit = 30): Promis
     exerciseCount: session_exercises.length,
     totalSets: set_logs.length,
     completedSets: set_logs.filter((s) => s.completed_at !== null).length,
+    deviatedSets: countDeviations(set_logs),
     volumeKg: totalVolume(set_logs),
   }));
 }

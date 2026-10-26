@@ -49,6 +49,8 @@ export type SessionSummary = WorkoutSession & {
   exerciseCount: number;
   completedSets: number;
   totalSets: number;
+  /** 目標と違う重量・回数で行ったセットの数 */
+  deviatedSets: number;
   volumeKg: number;
 };
 

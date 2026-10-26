@@ -6,7 +6,8 @@ import { WEIGHT_STEP_KG } from "@/lib/config";
 import { cn } from "@/lib/cn";
 import { formatDateShort } from "@/lib/dates";
 import { formatRest, formatSet, formatTarget } from "@/lib/format";
-import { sessionTargetSummary } from "@/lib/set-targets";
+import { sessionTargetSummary, setDeviation } from "@/lib/set-targets";
+import { DeviationChips } from "@/components/history/deviation-chips";
 import { isSetDone, stepValue, type SetDraft } from "@/lib/workout";
 import type { PreviousRecord, SessionExerciseWithSets, SetLog } from "@/types/app";
 import { SetText } from "@/components/ui/set-text";
@@ -187,6 +188,7 @@ function SetRow({
   const done = isSetDone(set);
   const weight = done ? set.actual_weight_kg : draft.weight === "" ? null : Number(draft.weight);
   const reps = done ? set.actual_reps : draft.reps === "" ? null : Number(draft.reps);
+  const deviation = done ? setDeviation(set) : null;
 
   return (
     <button
@@ -207,9 +209,17 @@ function SetRow({
       >
         {done ? <IconCheck size={15} strokeWidth={2.8} /> : set.set_number}
       </span>
-      <span className={cn("num flex-1 text-[17px] font-bold", done ? "text-chalk" : "text-ash")}>
-        <SetText text={formatSet(Number.isNaN(weight) ? null : weight, Number.isNaN(reps) ? null : reps)} />
-        <span className="ml-0.5 text-sm font-normal">回</span>
+      <span className="min-w-0 flex-1">
+        <span className={cn("num block text-[17px] font-bold", done ? "text-chalk" : "text-ash")}>
+          <SetText text={formatSet(Number.isNaN(weight) ? null : weight, Number.isNaN(reps) ? null : reps)} />
+          <span className="ml-0.5 text-sm font-normal">回</span>
+        </span>
+        {deviation ? (
+          <span className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-ash">
+            目標より
+            <DeviationChips deviation={deviation} />
+          </span>
+        ) : null}
       </span>
       <span className="text-xs text-ash">{saving ? "保存中…" : done ? "完了" : "予定"}</span>
     </button>

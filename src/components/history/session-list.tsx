@@ -38,6 +38,11 @@ export function SessionList({ sessions, hrefFor }: { sessions: SessionSummary[];
                   <span className="mx-1.5 text-line">/</span>
                   <span className="whitespace-nowrap">{formatNumber(session.volumeKg)} kg</span>
                 </p>
+                {session.deviatedSets > 0 ? (
+                  <p className="mt-0.5 text-xs font-bold text-plate-yellow">
+                    目標と違う <span className="num">{session.deviatedSets}</span>セット
+                  </p>
+                ) : null}
               </div>
               <IconChevronRight size={18} className="shrink-0 text-ash" />
             </Link>
