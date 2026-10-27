@@ -532,6 +532,82 @@ select tests.ok(
     where se.session_id = :'s_pyr2' and se.position = 3 and sl.target_reps = 60 and sl.target_weight_kg is null) = 2,
   'set_targets が無い種目は種目の目標で全セット作られる');
 
+-- ---------------------------------------------------------------------
+-- 13. 記録の削除
+-- ---------------------------------------------------------------------
+select tests.login('t1');
+insert into public.trainer_comments (trainer_id, client_id, session_id, body)
+values (tests.uid('t1'), tests.uid('c1'), :'s1', '記録へのコメント')
+returning id as comment_s1 \gset
+
+select tests.login('c2');
+select tests.affects(format('delete from public.workout_sessions where id = %L', :'s1'), 0, 'C2 は C1 の記録を削除できない');
+select tests.login('t2');
+select tests.affects(format('delete from public.workout_sessions where id = %L', :'s1'), 0, 'T2 は担当外の C1 の記録を削除できない');
+
+select tests.login('c1');
+select tests.affects(format('delete from public.workout_sessions where id = %L', :'s1'), 1, 'C1 は自分の記録（完了済み）を削除できる');
+select tests.ok(not exists (select 1 from public.set_logs where session_id = :'s1'), '記録を削除するとセットもまとめて消える');
+select tests.ok(not exists (select 1 from public.session_exercises where session_id = :'s1'), '記録を削除すると種目もまとめて消える');
+select tests.ok(
+  (select session_id from public.trainer_comments where id = :'comment_s1') is null,
+  '記録へのコメントは残り、記録とのつながりだけ外れる');
+
+select tests.login('t1');
+select tests.affects(format('delete from public.workout_sessions where id = %L', :'s_pyr2'), 1, 'T1 は担当クライアントの記録を削除できる');
+
+reset role;
+select set_config('request.jwt.claims', '', false);
+set role anon;
+select tests.throws(format('delete from public.workout_sessions where id = %L', :'s_pyr'), '未ログインでは記録を削除できない', '42501');
+reset role;
+set role authenticated;
+
+-- ---------------------------------------------------------------------
+-- 14. クライアントの削除（担当から外す）
+-- ---------------------------------------------------------------------
+select tests.login('c2');
+select public.start_workout_session(:'plan_c2', current_date) as s_c2 \gset
+
+select tests.login('c1');
+select tests.throws(format('select public.remove_client(%L)', tests.uid('c2')), 'クライアントは他のクライアントを削除できない', 'P0002', 'client_not_found');
+select tests.login('t2');
+select tests.throws(format('select public.remove_client(%L)', tests.uid('c2')), 'T2 は T1 のクライアントを削除できない', 'P0002', 'client_not_found');
+
+select tests.login('t1');
+select public.remove_client(tests.uid('c2'));
+select tests.ok(
+  (select status from public.trainer_clients where trainer_id = tests.uid('t1') and client_id = tests.uid('c2')) = 'archived',
+  '削除すると担当関係は archived になる（行は残る）');
+select tests.ok(not exists (select 1 from public.profiles where id = tests.uid('c2')), '削除したクライアントのプロフィールは見えない');
+select tests.ok(not exists (select 1 from public.workout_sessions where client_id = tests.uid('c2')), '削除したクライアントの記録は見えない');
+select tests.ok(not exists (select 1 from public.checkins where client_id = tests.uid('c2')), '削除したクライアントの体調は見えない');
+select tests.ok(
+  not exists (select 1 from public.get_trainer_dashboard(current_date) d where d.client_id = tests.uid('c2')),
+  '削除したクライアントはダッシュボードから消える');
+select tests.ok(
+  exists (select 1 from public.get_trainer_dashboard(current_date) d where d.client_id = tests.uid('c1')),
+  'ほかのクライアントはそのまま');
+select tests.throws(
+  format($q$select public.save_workout_plan(null, %L, 'x', null, null, '[{"name":"a","target_reps":1,"target_sets":1}]')$q$, tests.uid('c2')),
+  '削除したクライアントにはメニューを作れない', '42501');
+select tests.throws(format('select public.remove_client(%L)', tests.uid('c2')), '同じクライアントを二度は削除できない', 'P0002', 'client_not_found');
+
+select tests.login('c2');
+select tests.ok(not exists (select 1 from public.workout_plans where id = :'plan_c2'), '削除されたクライアントには元トレーナーのメニューが見えない');
+select tests.ok(not exists (select 1 from public.plan_exercises where plan_id = :'plan_c2'), '元トレーナーのメニューの種目も見えない');
+select tests.throws(format('select public.start_workout_session(%L, current_date - 1)', :'plan_c2'), '元トレーナーのメニューは開始できない', 'P0002', 'plan_not_found');
+select tests.ok(exists (select 1 from public.workout_sessions where id = :'s_c2'), 'クライアント本人の記録は残る');
+select tests.ok(not exists (select 1 from public.profiles where id = tests.uid('t1')), '元トレーナーのプロフィールは見えなくなる');
+
+select tests.login('t1');
+select code as inv_back from public.create_client_invite('戻ってきた') \gset
+select tests.login('c2');
+select public.accept_invite(:'inv_back');
+select tests.ok(exists (select 1 from public.workout_plans where id = :'plan_c2'), '再招待でつなぎ直すとメニューがまた見える');
+select tests.login('t1');
+select tests.ok(exists (select 1 from public.workout_sessions where id = :'s_c2'), '再招待でつなぎ直すと記録がまた見える');
+
 reset role;
 select 'ALL TESTS PASSED' as result;
 

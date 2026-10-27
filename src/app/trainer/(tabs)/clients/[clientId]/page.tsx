@@ -8,6 +8,7 @@ import { MetricStrip } from "@/components/condition/metric-strip";
 import { CheckinHistory } from "@/components/history/checkin-history";
 import { SessionList } from "@/components/history/session-list";
 import { PlanExerciseList, planDateLabel } from "@/components/plans/plan-card";
+import { RemoveClientButton } from "@/components/trainer/remove-client-button";
 import { LinkButton } from "@/components/ui/button";
 import { IconEdit, IconPlus } from "@/components/ui/icons";
 import { EmptyState } from "@/components/ui/notice";
@@ -102,6 +103,10 @@ export default async function TrainerClientPage({
       {activeTab === "sessions" ? <SessionsTab supabase={supabase} clientId={clientId} /> : null}
       {activeTab === "condition" ? <ConditionTab supabase={supabase} clientId={clientId} /> : null}
       {activeTab === "comments" ? <CommentsTab supabase={supabase} clientId={clientId} trainerId={userId} /> : null}
+
+      <div className="mt-10 border-t border-line pt-6">
+        <RemoveClientButton clientId={clientId} clientName={client.display_name} />
+      </div>
     </>
   );
 }

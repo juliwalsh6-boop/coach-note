@@ -95,6 +95,16 @@ export async function discardSession(db: DB, sessionId: string): Promise<void> {
   if (error) throw error;
 }
 
+/**
+ * トレーニング記録を削除する（本人または担当トレーナー。権限は RLS で判定）。
+ * 種目・セットもまとめて消える。削除できる記録が無ければ session_not_found。
+ */
+export async function deleteSession(db: DB, sessionId: string): Promise<void> {
+  const { data, error } = await db.from("workout_sessions").delete().eq("id", sessionId).select("id");
+  if (error) throw error;
+  if (!data || data.length === 0) throw new Error("session_not_found");
+}
+
 /** 履歴一覧（新しい順） */
 export async function listSessions(db: DB, clientId: string, limit = 30): Promise<SessionSummary[]> {
   const { data, error } = await db

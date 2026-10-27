@@ -43,6 +43,16 @@ export async function getInviteInfo(
   return { trainerName: row.trainer_name, status };
 }
 
+/**
+ * クライアントを削除する（担当から外す）。
+ * 担当関係を archived にするだけで、クライアントのアカウントと記録は残る。
+ * 新しい招待リンクで再びつなぐと、以前の記録・メニューもまた見えるようになる。
+ */
+export async function removeClient(db: DB, clientId: string): Promise<void> {
+  const { error } = await db.rpc("remove_client", { p_client_id: clientId });
+  if (error) throw error;
+}
+
 export async function acceptInvite(db: DB, code: string): Promise<string> {
   const { data, error } = await db.rpc("accept_invite", { p_code: code });
   if (error) throw error;

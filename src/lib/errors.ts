@@ -23,6 +23,7 @@ const DB_MESSAGES: Record<string, string> = {
   set_already_completed: "完了済みのセットは削除できません。",
   last_set_required: "最低1セットは必要です。",
   session_not_found: "トレーニングが見つかりません。画面を再読み込みしてください。",
+  client_not_found: "クライアントが見つかりません。すでに削除されている可能性があります。",
 };
 
 const AUTH_MESSAGES: Record<string, string> = {

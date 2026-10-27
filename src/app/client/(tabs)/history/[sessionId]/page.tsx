@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { CommentBubble } from "@/components/comments/comment-bubble";
+import { DeleteSessionButton } from "@/components/history/delete-session-button";
 import { SessionView } from "@/components/history/session-view";
 import { LinkButton } from "@/components/ui/button";
 import { Notice } from "@/components/ui/notice";
@@ -8,6 +9,7 @@ import { PageHeader, SectionTitle } from "@/components/ui/page-header";
 import { requireRole } from "@/lib/auth";
 import { listSessionComments } from "@/lib/data/comments";
 import { getSessionDetail } from "@/lib/data/sessions";
+import { formatDateLong } from "@/lib/dates";
 import { isUuid } from "@/lib/ids";
 
 export const metadata: Metadata = { title: "トレーニング記録" };
@@ -62,6 +64,15 @@ export default async function ClientSessionPage({
               ホームに戻る
             </LinkButton>
           ) : null}
+        </div>
+
+        <div className="border-t border-line pt-6">
+          <DeleteSessionButton
+            sessionId={session.id}
+            description={`${formatDateLong(session.performed_date)}の「${session.title}」`}
+            counterpart="トレーナー"
+            redirectHref="/client/history"
+          />
         </div>
       </div>
     </>

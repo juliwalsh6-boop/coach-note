@@ -603,6 +603,10 @@ export type Database = {
         Args: Record<PropertyKey, never>;
         Returns: number;
       };
+      remove_client: {
+        Args: { p_client_id: string };
+        Returns: undefined;
+      };
       remove_last_set: {
         Args: { p_session_exercise_id: string };
         Returns: string;
