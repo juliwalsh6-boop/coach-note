@@ -1,4 +1,4 @@
-# push のたびに「型チェック」と「本番ビルド」を自動で実行して、壊れていないか確認します。
+# push のたびに「型チェック」「lint」「単体テスト」「本番ビルド」と「DB（RLS）のテスト」を自動で実行して、壊れていないか確認します。
 # 結果は GitHub の Actions タブで見られます（Vercel への公開とは別です）。
 name: Build check
 
@@ -37,14 +37,48 @@ jobs:
         run: npm install --no-audit --no-fund 2>&1 | tee install.log
       - name: Type check
         run: npm run typecheck 2>&1 | tee typecheck.log
+      - name: Lint
+        run: npm run lint 2>&1 | tee lint.log
+      - name: Unit tests
+        run: npm test 2>&1 | tee test.log
       - name: Build
         run: npm run build 2>&1 | tee build.log
       - name: Show failure details
         if: failure()
         run: |
           # 失敗したときはログの最後を注釈として残し、Actions の画面からすぐ読めるようにする
-          for f in install.log typecheck.log build.log; do
+          for f in install.log typecheck.log lint.log test.log build.log; do
             [ -s "$f" ] || continue
             body=$(tail -n 150 "$f" | sed -e 's/%/%25/g' -e 's/\r/%0D/g' | awk 'BEGIN { ORS = "%0A" } { print }')
             echo "::error title=${f}::${body}"
           done
+
+  # supabase/migrations と RLS のテスト（supabase/tests）を、素の PostgreSQL 16 で実行する
+  db-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      PGHOST: localhost
+      PGUSER: postgres
+      PGPASSWORD: postgres
+    steps:
+      - uses: actions/checkout@v5
+      - name: SQL tests
+        run: bash supabase/tests/run.sh 2>&1 | tee db-test.log
+      - name: Show failure details
+        if: failure()
+        run: |
+          body=$(tail -n 150 db-test.log | sed -e 's/%/%25/g' -e 's/\r/%0D/g' | awk 'BEGIN { ORS = "%0A" } { print }')
+          echo "::error title=db-test.log::${body}"
