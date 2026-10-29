@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { JoinByCodeForm } from "@/components/auth/join-by-code-form";
 import { CheckinCard } from "@/components/checkin/checkin-card";
+import { TodayMealCard } from "@/components/meals/today-meal-card";
 import { PlanExerciseList, planDateLabel } from "@/components/plans/plan-card";
 import { LinkButton } from "@/components/ui/button";
 import { IconChevronRight } from "@/components/ui/icons";
@@ -10,6 +11,7 @@ import { StartWorkoutButton } from "@/components/workout/start-workout-button";
 import { requireRole } from "@/lib/auth";
 import { getCheckin, getLatestBodyWeight } from "@/lib/data/checkins";
 import { listComments } from "@/lib/data/comments";
+import { getNutritionDays } from "@/lib/data/meals";
 import { listPlansForClient } from "@/lib/data/plans";
 import { listMyTrainers } from "@/lib/data/profiles";
 import { listRecentSessions } from "@/lib/data/sessions";
@@ -22,13 +24,15 @@ export default async function ClientHomePage() {
   const { supabase, userId, profile } = await requireRole("client");
   const today = todayISO();
 
-  const [checkin, latestWeight, plans, recentSessions, trainers, comments] = await Promise.all([
+  const [checkin, latestWeight, plans, recentSessions, trainers, comments, nutritionDays] = await Promise.all([
     getCheckin(supabase, userId, today),
     getLatestBodyWeight(supabase, userId),
     listPlansForClient(supabase, userId),
     listRecentSessions(supabase, userId, addDaysISO(today, -1)),
     listMyTrainers(supabase),
     listComments(supabase, userId, 1),
+    // 食事のカード（取得できないときはカードを出さないだけで、ホームの他の表示には影響させない）
+    getNutritionDays(supabase, userId, today, today).catch(() => null),
   ]);
 
   const inProgress = recentSessions.filter((s) => s.status === "in_progress");
@@ -78,6 +82,8 @@ export default async function ClientHomePage() {
         initial={checkin}
         latestWeightKg={latestWeight}
       />
+
+      {nutritionDays ? <TodayMealCard row={nutritionDays[0] ?? null} /> : null}
 
       {inProgress.length > 0 ? (
         <section>

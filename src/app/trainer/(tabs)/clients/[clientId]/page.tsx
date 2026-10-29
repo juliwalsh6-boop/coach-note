@@ -202,31 +202,36 @@ async function MealsTab({
   }
   const from = addDaysISO(date, -6);
 
+  let data;
   try {
-    const [meals, days, checkins, sessions] = await Promise.all([
+    data = await Promise.all([
       getMealDay(supabase, clientId, date),
       getNutritionDays(supabase, clientId, from, date),
       listCheckinsBetween(supabase, clientId, from, date),
       listSessionsBetween(supabase, clientId, from, date),
     ]);
-    return (
-      <TrainerMealDay
-        key={date}
-        clientId={clientId}
-        clientName={clientName}
-        trainerId={trainerId}
-        date={date}
-        today={today}
-        initialMeals={meals}
-        days={days}
-        weights={checkins.flatMap((c) => (c.body_weight_kg != null ? [{ date: c.checkin_date, kg: Number(c.body_weight_kg) }] : []))}
-        sessions={sessions}
-      />
-    );
   } catch (e) {
-    if (isMissingSchemaError(e)) return <MealsSetupNotice role="trainer" />;
-    throw e;
+    // データベースの更新前（食事のテーブルが無い）なら、落とさずに案内だけ出す
+    if (!isMissingSchemaError(e)) throw e;
+    data = null;
   }
+  if (!data) return <MealsSetupNotice role="trainer" />;
+
+  const [meals, days, checkins, sessions] = data;
+  return (
+    <TrainerMealDay
+      key={date}
+      clientId={clientId}
+      clientName={clientName}
+      trainerId={trainerId}
+      date={date}
+      today={today}
+      initialMeals={meals}
+      days={days}
+      weights={checkins.flatMap((c) => (c.body_weight_kg != null ? [{ date: c.checkin_date, kg: Number(c.body_weight_kg) }] : []))}
+      sessions={sessions}
+    />
+  );
 }
 
 async function SessionsTab({ supabase, clientId }: { supabase: DB; clientId: string }) {
