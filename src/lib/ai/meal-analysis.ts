@@ -8,7 +8,7 @@
 import { MEAL_ANALYSIS_SCHEMA, validateMealAnalysis, type MealAnalysis } from "@/lib/nutrition/analysis";
 import type { AnalyzableImageType } from "@/lib/images/sniff";
 
-const API_URL = "https://api.anthropic.com/v1/messages";
+const DEFAULT_API_BASE_URL = "https://api.anthropic.com";
 const API_VERSION = "2023-06-01";
 /** 既定のモデル（環境変数 MEAL_ANALYSIS_MODEL で変更できる） */
 export const DEFAULT_ANALYSIS_MODEL = "claude-sonnet-5-5";
@@ -37,6 +37,23 @@ export function isMealAnalysisConfigured(): boolean {
 
 export function mealAnalysisModel(): string {
   return process.env.MEAL_ANALYSIS_MODEL?.trim() || DEFAULT_ANALYSIS_MODEL;
+}
+
+/**
+ * Messages API の URL。ANTHROPIC_BASE_URL（任意。社内プロキシや自動テスト用のモック）があればそちらを使う。
+ * http(s) 以外・不正な値は無視して既定の URL にする。
+ */
+export function messagesApiUrl(baseUrl: string | undefined = process.env.ANTHROPIC_BASE_URL): string {
+  const fallback = `${DEFAULT_API_BASE_URL}/v1/messages`;
+  const trimmed = baseUrl?.trim();
+  if (!trimmed) return fallback;
+  try {
+    const url = new URL(trimmed);
+    if (url.protocol !== "https:" && url.protocol !== "http:") return fallback;
+    return `${url.origin}${url.pathname.replace(/\/+$/, "")}/v1/messages`;
+  } catch {
+    return fallback;
+  }
 }
 
 const SYSTEM_PROMPT = `あなたは日本の管理栄養士のアシスタントです。食事の写真から、写っている料理・食品を特定し、食べる量と栄養値（エネルギー・たんぱく質・脂質・炭水化物）を推定します。
@@ -77,7 +94,7 @@ export async function analyzeMealImage(
 
   let response: Response;
   try {
-    response = await fetch(API_URL, {
+    response = await fetch(messagesApiUrl(), {
       method: "POST",
       headers: {
         "x-api-key": apiKey,

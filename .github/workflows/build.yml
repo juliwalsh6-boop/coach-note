@@ -1,4 +1,5 @@
-# push のたびに「型チェック」「lint」「単体テスト」「本番ビルド」と「DB（RLS）のテスト」を自動で実行して、壊れていないか確認します。
+# push のたびに「型チェック」「lint」「単体テスト」「本番ビルド」「DB（RLS）のテスト」と、
+# ローカルの Supabase に対する「画面を通した動作確認（E2E）」を自動で実行して、壊れていないか確認します。
 # 結果は GitHub の Actions タブで見られます（Vercel への公開とは別です）。
 name: Build check
 
@@ -82,3 +83,63 @@ jobs:
         run: |
           body=$(tail -n 150 db-test.log | sed -e 's/%/%25/g' -e 's/\r/%0D/g' | awk 'BEGIN { ORS = "%0A" } { print }')
           echo "::error title=db-test.log::${body}"
+
+  # 画面を通した動作確認（E2E）: ローカルの Supabase（supabase start）に今のマイグレーションと商品データを入れ、
+  # 本番ビルドのアプリを Playwright（スマホの画面サイズ）で操作する。AI 解析は e2e/mock-anthropic.mjs（モック）を使う。
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - name: Start local Supabase
+        run: |
+          set -o pipefail
+          # 設定ファイル（supabase/config.toml）は CI の中だけで作る（リポジトリには置かない）
+          supabase init --force < /dev/null 2>&1 | tee supabase-start.log
+          supabase start -x studio,imgproxy,edge-runtime,logflare,vector,realtime,postgres-meta 2>&1 | tee -a supabase-start.log
+          supabase status -o env 2>/dev/null | grep -E '^[A-Z_]+=' > supabase.env
+          set -a; source supabase.env; set +a
+          echo "NEXT_PUBLIC_SUPABASE_URL=${API_URL}" >> "$GITHUB_ENV"
+          echo "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=${PUBLISHABLE_KEY:-$ANON_KEY}" >> "$GITHUB_ENV"
+          echo "E2E_DB_URL=${DB_URL}" >> "$GITHUB_ENV"
+      - name: Load food data
+        run: psql "$E2E_DB_URL" -v ON_ERROR_STOP=1 -q -f supabase/data/foods.sql 2>&1 | tee -a supabase-start.log
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund 2>&1 | tee install.log
+      - name: Build
+        run: npm run build 2>&1 | tee build.log
+      - name: Install Playwright
+        run: |
+          set -o pipefail
+          npm install --no-save --no-audit --no-fund "@playwright/test@^1.55.0" 2>&1 | tee pw-install.log
+          npx playwright install --with-deps chromium 2>&1 | tail -n 40 | tee -a pw-install.log
+      - name: E2E tests
+        env:
+          ANTHROPIC_API_KEY: e2e-test-key
+          ANTHROPIC_BASE_URL: http://127.0.0.1:4010
+        run: |
+          set -o pipefail
+          node e2e/mock-anthropic.mjs > mock.log 2>&1 &
+          npx next start -p 3000 -H 127.0.0.1 > app.log 2>&1 &
+          for i in $(seq 1 60); do
+            if curl -sf -o /dev/null http://127.0.0.1:3000/login && curl -sf -o /dev/null http://127.0.0.1:4010/health; then break; fi
+            sleep 1
+          done
+          npx playwright test -c e2e/playwright.config.ts 2>&1 | tee e2e.log
+      - name: Show failure details
+        if: failure()
+        run: |
+          # 失敗したときはログの最後を注釈として残し、Actions の画面からすぐ読めるようにする
+          for f in supabase-start.log install.log build.log pw-install.log e2e.log app.log mock.log; do
+            [ -s "$f" ] || continue
+            body=$(tail -n 120 "$f" | sed -e 's/%/%25/g' -e 's/\r/%0D/g' | awk 'BEGIN { ORS = "%0A" } { print }')
+            echo "::error title=${f}::${body}"
+          done
