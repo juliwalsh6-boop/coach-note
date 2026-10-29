@@ -48,3 +48,41 @@ grant execute on function auth.uid() to anon, authenticated, service_role;
 
 -- 2026年以降の新規 Supabase プロジェクトと同様、public のテーブルには自動で権限を付けない
 grant usage on schema public to anon, authenticated, service_role;
+
+-- Storage（食事写真のテスト用）: Supabase の storage スキーマのうち、ポリシーの確認に必要な部分だけ
+create schema if not exists storage;
+
+create table if not exists storage.buckets (
+  id text primary key,
+  name text not null,
+  public boolean default false,
+  file_size_limit bigint,
+  allowed_mime_types text[]
+);
+
+create table if not exists storage.objects (
+  id uuid primary key default gen_random_uuid(),
+  bucket_id text references storage.buckets (id),
+  name text,
+  owner uuid,
+  created_at timestamptz default now()
+);
+alter table storage.objects enable row level security;
+
+-- Supabase と同じ定義（'a/b/c.jpg' → {a,b}）
+create or replace function storage.foldername(name text)
+returns text[]
+language plpgsql
+as $$
+declare
+  _parts text[];
+begin
+  select string_to_array(name, '/') into _parts;
+  return _parts[1:array_length(_parts, 1) - 1];
+end;
+$$;
+
+grant usage on schema storage to anon, authenticated, service_role;
+grant select, insert, update, delete on storage.objects to authenticated;
+grant select on storage.buckets to authenticated;
+grant execute on function storage.foldername(text) to anon, authenticated, service_role;
