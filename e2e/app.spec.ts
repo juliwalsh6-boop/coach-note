@@ -316,7 +316,12 @@ test("8・9. 残りの PFC に合わせたコンビニ・外食の組み合わ�
   await expectFitsScreen(client, "組み合わせの提案");
 
   await first.getByRole("button", { name: "この組み合わせを夕食に記録" }).click();
-  await expect(first.getByText("夕食に記録しました")).toBeVisible();
+  // 記録すると残りが変わって候補が入れ替わるので、記録した内容は上のお知らせとトーストで分かるようにしている
+  await expect(client.getByText("夕食に記録しました", { exact: true })).toBeVisible();
+  const recorded = sheet.getByText(/夕食に記録しました: /);
+  await expect(recorded).toBeVisible();
+  await expect(sheet.getByText("残りが変わったので、下の候補を今の残りに合わせて更新しました。")).toBeVisible();
+  await expect(recorded).toContainText(/7プレミアム|銀しゃりむすび|手巻おにぎり/);
 
   // 外食: 牛丼（吉野家）の候補が出る。データの無いジャンルは「準備中」
   await sheet.getByRole("tab", { name: /外食チェーン/ }).click();

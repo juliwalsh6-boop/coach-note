@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { IconCheck, IconChevronDown, IconExternal, IconStore, IconUtensils } from "@/components/ui/icons";
 import { Notice } from "@/components/ui/notice";
 import { Sheet } from "@/components/ui/sheet";
+import { useToast } from "@/components/ui/toaster";
 import { cn } from "@/lib/cn";
 import { listBrands, listSuggestionFoods, type BrandSummary } from "@/lib/data/foods";
 import { addMealItems, type MealItemInput } from "@/lib/data/meals";
@@ -114,7 +115,9 @@ export function SuggestSheet({
   const [error, setError] = useState<string | null>(null);
   const [addingKey, setAddingKey] = useState<string | null>(null);
   const [addedKeys, setAddedKeys] = useState<ReadonlySet<string>>(() => new Set());
+  const [lastRecorded, setLastRecorded] = useState<string | null>(null);
   const requestIds = useRef(new Map<string, string>());
+  const { toast } = useToast();
 
   // 商品データのあるお店
   useEffect(() => {
@@ -179,6 +182,14 @@ export function SuggestSheet({
     try {
       await addMealItems(db, { date, mealType, items: suggestionToItems(suggestion), requestId });
       setAddedKeys((current) => new Set([...current, suggestion.key]));
+      // 記録すると残りが変わり、下の候補も入れ替わるので、何を記録したかを上に残しておく
+      const label = MEAL_TYPE_LABELS[mealType];
+      setLastRecorded(
+        `${label}に記録しました: ${suggestion.items
+          .map((i) => `${i.food.name}${i.quantity > 1 ? ` ×${i.quantity}` : ""}`)
+          .join("、")}`,
+      );
+      toast(`${label}に記録しました`, "success");
       onAdded();
     } catch (e) {
       setError(toErrorMessage(e));
@@ -190,6 +201,17 @@ export function SuggestSheet({
   return (
     <Sheet open size="full" title="コンビニ・外食で選ぶ" description={`${formatDateShort(date)}の残りに合わせた組み合わせ`} onClose={onClose} busy={addingKey !== null}>
       <div className="space-y-4">
+        {lastRecorded ? (
+          <Notice tone="success">
+            <span className="flex items-start gap-1.5">
+              <IconCheck size={16} className="mt-0.5 shrink-0" />
+              <span>
+                {lastRecorded}
+                <span className="mt-0.5 block text-xs">残りが変わったので、下の候補を今の残りに合わせて更新しました。</span>
+              </span>
+            </span>
+          </Notice>
+        ) : null}
         <div role="tablist" aria-label="お店の種類" className="grid grid-cols-2 gap-1 rounded-2xl bg-iron p-1">
           {(
             [
