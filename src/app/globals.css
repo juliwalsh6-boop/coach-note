@@ -22,6 +22,11 @@
   --color-plate-red: #e5484d;
   --color-plate-red-bright: #ff8085;
 
+  /* 食事管理: たんぱく質・脂質・炭水化物の色（プレートの色の意味＝操作・完了・注意・超過 と重ならないもの） */
+  --color-macro-p: #c4a5ff;
+  --color-macro-f: #ffad5c;
+  --color-macro-c: #52d6e8;
+
   --font-sans: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic UI", Meiryo, system-ui,
     sans-serif;
   --font-num: var(--font-archivo), "Hiragino Sans", system-ui, sans-serif;
@@ -121,6 +126,15 @@
 @utility scroll-mt-focus {
   scroll-margin-top: 88px;
   scroll-margin-bottom: 200px;
+}
+
+/* 目標を超えた分のバー（斜線で、色だけに頼らず超過が分かるように） */
+@utility bar-over {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    var(--color-plate-red) 0 5px,
+    color-mix(in srgb, var(--color-plate-red) 55%, transparent) 5px 10px
+  );
 }
 
 @keyframes rest-done-pulse {

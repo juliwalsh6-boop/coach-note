@@ -116,3 +116,11 @@ export function isValidISODate(value: unknown): value is string {
   const date = new Date(Date.UTC(year, month - 1, day));
   return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
 }
+
+/** アプリのタイムゾーンでの現在の時（0〜23） */
+export function currentHour(date: Date = new Date()): number {
+  const hour = Number(
+    new Intl.DateTimeFormat("en-US", { timeZone: APP_TIME_ZONE, hour: "numeric", hour12: false }).format(date),
+  );
+  return hour === 24 ? 0 : hour;
+}

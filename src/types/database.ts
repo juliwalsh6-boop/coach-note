@@ -534,11 +534,485 @@ export type Database = {
           },
         ];
       };
+      nutrition_targets: {
+        Row: {
+          id: string;
+          client_id: string;
+          trainer_id: string | null;
+          effective_from: string;
+          energy_kcal: number;
+          protein_g: number;
+          fat_g: number;
+          carbs_g: number;
+          energy_tolerance_kcal: number;
+          protein_tolerance_g: number;
+          fat_tolerance_g: number;
+          carbs_tolerance_g: number;
+          note: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          client_id: string;
+          trainer_id?: string | null;
+          effective_from: string;
+          energy_kcal: number;
+          protein_g: number;
+          fat_g: number;
+          carbs_g: number;
+          energy_tolerance_kcal?: number;
+          protein_tolerance_g?: number;
+          fat_tolerance_g?: number;
+          carbs_tolerance_g?: number;
+          note?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          client_id?: string;
+          trainer_id?: string | null;
+          effective_from?: string;
+          energy_kcal?: number;
+          protein_g?: number;
+          fat_g?: number;
+          carbs_g?: number;
+          energy_tolerance_kcal?: number;
+          protein_tolerance_g?: number;
+          fat_tolerance_g?: number;
+          carbs_tolerance_g?: number;
+          note?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "nutrition_targets_client_id_fkey";
+            columns: ["client_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "nutrition_targets_trainer_id_fkey";
+            columns: ["trainer_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      foods: {
+        Row: {
+          id: string;
+          code: string | null;
+          owner_trainer_id: string | null;
+          name: string;
+          brand_key: string | null;
+          brand: string | null;
+          channel: string;
+          genre: string | null;
+          category: string | null;
+          meal_role: string;
+          serving_label: string;
+          serving_weight_g: number | null;
+          nutrient_basis: string;
+          energy_kcal: number;
+          protein_g: number;
+          fat_g: number;
+          carbs_g: number;
+          price_yen: number | null;
+          price_note: string | null;
+          source_type: string;
+          source_url: string | null;
+          source_note: string | null;
+          verified_on: string | null;
+          verification_status: string;
+          availability: string;
+          search_key: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          code?: string | null;
+          owner_trainer_id?: string | null;
+          name: string;
+          brand_key?: string | null;
+          brand?: string | null;
+          channel: string;
+          genre?: string | null;
+          category?: string | null;
+          meal_role: string;
+          serving_label?: string;
+          serving_weight_g?: number | null;
+          nutrient_basis: string;
+          energy_kcal: number;
+          protein_g: number;
+          fat_g: number;
+          carbs_g: number;
+          price_yen?: number | null;
+          price_note?: string | null;
+          source_type: string;
+          source_url?: string | null;
+          source_note?: string | null;
+          verified_on?: string | null;
+          verification_status?: string;
+          availability?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          code?: string | null;
+          owner_trainer_id?: string | null;
+          name?: string;
+          brand_key?: string | null;
+          brand?: string | null;
+          channel?: string;
+          genre?: string | null;
+          category?: string | null;
+          meal_role?: string;
+          serving_label?: string;
+          serving_weight_g?: number | null;
+          nutrient_basis?: string;
+          energy_kcal?: number;
+          protein_g?: number;
+          fat_g?: number;
+          carbs_g?: number;
+          price_yen?: number | null;
+          price_note?: string | null;
+          source_type?: string;
+          source_url?: string | null;
+          source_note?: string | null;
+          verified_on?: string | null;
+          verification_status?: string;
+          availability?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "foods_owner_trainer_id_fkey";
+            columns: ["owner_trainer_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      meals: {
+        Row: {
+          id: string;
+          client_id: string;
+          eaten_on: string;
+          meal_type: string;
+          note: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          client_id: string;
+          eaten_on: string;
+          meal_type: string;
+          note?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          client_id?: string;
+          eaten_on?: string;
+          meal_type?: string;
+          note?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "meals_client_id_fkey";
+            columns: ["client_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      meal_photos: {
+        Row: {
+          id: string;
+          meal_id: string;
+          client_id: string;
+          storage_path: string;
+          content_hash: string | null;
+          width: number | null;
+          height: number | null;
+          size_bytes: number | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          meal_id: string;
+          client_id: string;
+          storage_path: string;
+          content_hash?: string | null;
+          width?: number | null;
+          height?: number | null;
+          size_bytes?: number | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          meal_id?: string;
+          client_id?: string;
+          storage_path?: string;
+          content_hash?: string | null;
+          width?: number | null;
+          height?: number | null;
+          size_bytes?: number | null;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "meal_photos_meal_id_client_id_fkey";
+            columns: ["meal_id", "client_id"];
+            isOneToOne: false;
+            referencedRelation: "meals";
+            referencedColumns: ["id", "client_id"];
+          },
+        ];
+      };
+      meal_items: {
+        Row: {
+          id: string;
+          meal_id: string;
+          client_id: string;
+          position: number;
+          name: string;
+          brand: string | null;
+          origin: string;
+          food_id: string | null;
+          photo_id: string | null;
+          unit: string;
+          ref_amount: number;
+          ref_energy_kcal: number;
+          ref_protein_g: number;
+          ref_fat_g: number;
+          ref_carbs_g: number;
+          amount: number;
+          serving_label: string | null;
+          serving_weight_g: number | null;
+          weight_g: number | null;
+          energy_kcal: number;
+          protein_g: number;
+          fat_g: number;
+          carbs_g: number;
+          ai_estimate: Json | null;
+          ai_adjusted: boolean;
+          request_id: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          meal_id: string;
+          client_id: string;
+          position?: number;
+          name: string;
+          brand?: string | null;
+          origin: string;
+          food_id?: string | null;
+          photo_id?: string | null;
+          unit: string;
+          ref_amount: number;
+          ref_energy_kcal: number;
+          ref_protein_g: number;
+          ref_fat_g: number;
+          ref_carbs_g: number;
+          amount: number;
+          serving_label?: string | null;
+          serving_weight_g?: number | null;
+          ai_estimate?: Json | null;
+          request_id?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          position?: number;
+          name?: string;
+          brand?: string | null;
+          unit?: string;
+          ref_amount?: number;
+          ref_energy_kcal?: number;
+          ref_protein_g?: number;
+          ref_fat_g?: number;
+          ref_carbs_g?: number;
+          amount?: number;
+          serving_label?: string | null;
+          serving_weight_g?: number | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "meal_items_meal_id_client_id_fkey";
+            columns: ["meal_id", "client_id"];
+            isOneToOne: false;
+            referencedRelation: "meals";
+            referencedColumns: ["id", "client_id"];
+          },
+          {
+            foreignKeyName: "meal_items_food_id_fkey";
+            columns: ["food_id"];
+            isOneToOne: false;
+            referencedRelation: "foods";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "meal_items_photo_id_fkey";
+            columns: ["photo_id"];
+            isOneToOne: false;
+            referencedRelation: "meal_photos";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      meal_comments: {
+        Row: {
+          id: string;
+          meal_id: string;
+          client_id: string;
+          author_id: string;
+          body: string;
+          read_at: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          meal_id: string;
+          client_id: string;
+          author_id: string;
+          body: string;
+          read_at?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          meal_id?: string;
+          client_id?: string;
+          author_id?: string;
+          body?: string;
+          read_at?: string | null;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "meal_comments_meal_id_client_id_fkey";
+            columns: ["meal_id", "client_id"];
+            isOneToOne: false;
+            referencedRelation: "meals";
+            referencedColumns: ["id", "client_id"];
+          },
+          {
+            foreignKeyName: "meal_comments_author_id_fkey";
+            columns: ["author_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
     };
     Views: {
       [_ in never]: never;
     };
     Functions: {
+      add_meal_items: {
+        Args: {
+          p_date: string;
+          p_meal_type: string;
+          p_items: Json;
+          p_photo?: Json | null;
+          p_request_id?: string | null;
+        };
+        Returns: string;
+      };
+      consume_meal_analysis_quota: {
+        Args: Record<PropertyKey, never>;
+        Returns: number;
+      };
+      copy_meal: {
+        Args: { p_source_meal_id: string; p_date: string; p_meal_type: string; p_request_id?: string | null };
+        Returns: string;
+      };
+      get_nutrition_days: {
+        Args: { p_client_id: string; p_from: string; p_to: string };
+        Returns: {
+          day: string;
+          target_id: string | null;
+          target_effective_from: string | null;
+          target_energy_kcal: number | null;
+          target_protein_g: number | null;
+          target_fat_g: number | null;
+          target_carbs_g: number | null;
+          energy_tolerance_kcal: number | null;
+          protein_tolerance_g: number | null;
+          fat_tolerance_g: number | null;
+          carbs_tolerance_g: number | null;
+          energy_kcal: number;
+          protein_g: number;
+          fat_g: number;
+          carbs_g: number;
+          item_count: number;
+          meal_count: number;
+        }[];
+      };
+      get_trainer_nutrition_overview: {
+        Args: { p_date: string };
+        Returns: {
+          client_id: string;
+          display_name: string;
+          target_energy_kcal: number | null;
+          target_protein_g: number | null;
+          target_fat_g: number | null;
+          target_carbs_g: number | null;
+          energy_tolerance_kcal: number | null;
+          protein_tolerance_g: number | null;
+          fat_tolerance_g: number | null;
+          carbs_tolerance_g: number | null;
+          energy_kcal: number;
+          protein_g: number;
+          fat_g: number;
+          carbs_g: number;
+          item_count: number;
+          meal_count: number;
+          photo_count: number;
+          last_logged_at: string | null;
+          unread_comment_count: number;
+          latest_weight_kg: number | null;
+          latest_weight_date: string | null;
+        }[];
+      };
+      mark_meal_comments_read: {
+        Args: { p_meal_ids: string[] };
+        Returns: number;
+      };
+      save_nutrition_target: {
+        Args: {
+          p_client_id: string;
+          p_effective_from: string;
+          p_energy_kcal: number;
+          p_protein_g: number;
+          p_fat_g: number;
+          p_carbs_g: number;
+          p_energy_tolerance_kcal: number;
+          p_protein_tolerance_g: number;
+          p_fat_tolerance_g: number;
+          p_carbs_tolerance_g: number;
+          p_note?: string | null;
+        };
+        Returns: Database["public"]["Tables"]["nutrition_targets"]["Row"];
+      };
       accept_invite: {
         Args: { p_code: string };
         Returns: string;

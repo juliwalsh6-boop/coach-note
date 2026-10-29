@@ -74,8 +74,11 @@ export function useRestTimer(sessionId: string, onCue: (event: CueEvent) => void
     const saved = readSaved(storageKey);
     if (saved) {
       fired.current = new Set();
+      // 保存した休憩は端末の storage にしか無いため、表示（マウント）後に読み込んで反映する（サーバーの描画と揃えるため）
+      /* eslint-disable react-hooks/set-state-in-effect */
       setNow(Date.now());
       setRest(saved);
+      /* eslint-enable react-hooks/set-state-in-effect */
     }
   }, [storageKey]);
 

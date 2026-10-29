@@ -60,3 +60,27 @@ export type PreviousRecord = {
   sets: { setNumber: number; weightKg: number | null; reps: number | null }[];
 };
 export type PreviousRecordMap = Record<string, PreviousRecord>;
+
+// ---------------------------------------------------------------------
+// 食事管理
+// ---------------------------------------------------------------------
+export type NutritionTarget = Tables<"nutrition_targets">;
+export type FoodRow = Tables<"foods">;
+export type Meal = Tables<"meals">;
+export type MealItem = Tables<"meal_items">;
+export type MealPhoto = Tables<"meal_photos">;
+export type MealComment = Tables<"meal_comments">;
+export type NutritionDayRow = FunctionReturns<"get_nutrition_days">[number];
+export type NutritionOverviewRow = FunctionReturns<"get_trainer_nutrition_overview">[number];
+
+/** 食事 1 回分（食べたもの・写真・コメントつき） */
+export type MealWithDetails = Meal & {
+  items: MealItem[];
+  photos: MealPhoto[];
+  comments: MealComment[];
+};
+
+/** 食事へのコメント（コメント画面用に、食事の日付・区分つき） */
+export type MealCommentWithMeal = MealComment & {
+  meal: Pick<Meal, "id" | "eaten_on" | "meal_type">;
+};

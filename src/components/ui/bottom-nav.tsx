@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/cn";
 import {
+  IconBowl,
   IconHistory,
   IconHome,
   IconMessage,
@@ -14,6 +15,7 @@ import {
 
 const ICONS = {
   home: IconHome,
+  meal: IconBowl,
   history: IconHistory,
   message: IconMessage,
   user: IconUser,

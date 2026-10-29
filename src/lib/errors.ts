@@ -24,6 +24,26 @@ const DB_MESSAGES: Record<string, string> = {
   last_set_required: "最低1セットは必要です。",
   session_not_found: "トレーニングが見つかりません。画面を再読み込みしてください。",
   client_not_found: "クライアントが見つかりません。すでに削除されている可能性があります。",
+  // 食事管理
+  client_only: "この操作はクライアントのアカウントでのみ行えます。",
+  invalid_meal_item: "食べたものの内容を確認してください（名前・量・栄養値）。",
+  meal_items_required: "食べたものを1つ以上入力してください。",
+  too_many_meal_items: "1回に追加できるのは30品までです。",
+  invalid_meal_type: "朝食・昼食・夕食・間食から選んでください。",
+  meal_item_out_of_range: "量が大きすぎます。単位（g・1食）と量を確認してください。",
+  invalid_photo: "写真を保存できませんでした。もう一度お試しください。",
+  meal_not_found: "食事が見つかりません。画面を再読み込みしてください。",
+  invalid_target_date: "適用開始日は今日以降の日付にしてください（過去の目標は変更できません）。",
+  analysis_quota_exceeded: "AI解析は24時間で40回までです。時間をおいてから使うか、手入力で記録してください。",
+  ai_not_configured: "AI解析はまだ使えません（設定されていません）。手入力で記録できます。",
+  ai_timeout: "AI解析に時間がかかりすぎました。もう一度お試しいただくか、手入力で記録してください。",
+  ai_busy: "AI解析が混み合っています。少し待ってからもう一度お試しください。",
+  ai_failed: "AI解析に失敗しました。もう一度お試しいただくか、手入力で記録してください。",
+  ai_invalid_response: "AIの解析結果を読み取れませんでした。もう一度お試しいただくか、手入力で記録してください。",
+  ai_refused: "この写真は解析できませんでした。手入力で記録してください。",
+  invalid_image: "画像を読み込めませんでした。JPEG・PNG・WebP の写真を選んでください。",
+  image_too_large: "画像が大きすぎます。別の写真を選んでください。",
+  photo_upload_failed: "写真をアップロードできませんでした。電波の良い場所でもう一度お試しください。",
 };
 
 const AUTH_MESSAGES: Record<string, string> = {
