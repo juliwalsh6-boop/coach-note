@@ -317,7 +317,7 @@ test("8・9. 残りの PFC に合わせたコンビニ・外食の組み合わ�
 
   await first.getByRole("button", { name: "この組み合わせを夕食に記録" }).click();
   // 記録すると残りが変わって候補が入れ替わるので、記録した内容は上のお知らせとトーストで分かるようにしている
-  await expect(client.getByText("夕食に記録しました", { exact: true })).toBeVisible();
+  await expect(client.getByText("夕食に記録しました", { exact: true }).first()).toBeVisible();
   const recorded = sheet.getByText(/夕食に記録しました: /);
   await expect(recorded).toBeVisible();
   await expect(sheet.getByText("残りが変わったので、下の候補を今の残りに合わせて更新しました。")).toBeVisible();
