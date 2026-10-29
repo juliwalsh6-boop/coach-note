@@ -126,6 +126,14 @@ export function IconChevronRight(props: IconProps) {
   );
 }
 
+export function IconChevronDown(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="m5.5 9.5 6.5 6.5 6.5-6.5" />
+    </Svg>
+  );
+}
+
 export function IconArrowUp(props: IconProps) {
   return (
     <Svg {...props}>

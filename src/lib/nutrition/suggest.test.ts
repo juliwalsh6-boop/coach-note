@@ -74,9 +74,16 @@ describe("mealBudget / mealToleranceFor", () => {
     const budget = mealBudget(TARGET, n(1200, 60, 70, 150), 0.5);
     assert.deepEqual(budget, n(500, 40, 0, 60));
   });
-  test("この食事の許容範囲は配分に合わせて小さくなるが、下限がある", () => {
+  test("この食事の許容範囲は配分の平方根で小さくなるが、下限がある", () => {
     assert.deepEqual(mealToleranceFor(TOLERANCE, 1), n(100, 10, 5, 20));
-    assert.deepEqual(mealToleranceFor(TOLERANCE, 0.3), n(60, 5, 4, 10));
+    // 配分 0.64 → 1 日の 0.8 倍（脂質は下限 4g）
+    const lunch = mealToleranceFor(TOLERANCE, 0.64);
+    assert.ok(Math.abs(lunch.energyKcal - 80) < 1e-9);
+    assert.ok(Math.abs(lunch.proteinG - 8) < 1e-9);
+    assert.ok(Math.abs(lunch.fatG - 4) < 1e-9);
+    assert.ok(Math.abs(lunch.carbsG - 16) < 1e-9);
+    // 配分が小さくても 1 日の半分（と下限）より狭くしない
+    assert.deepEqual(mealToleranceFor(TOLERANCE, 0.1), n(60, 5, 4, 10));
   });
 });
 
@@ -110,6 +117,44 @@ describe("evaluateCombination", () => {
       context,
     );
     assert.equal(result.priceYen, null);
+  });
+
+  test("たんぱく質の多め・脂質の少なめは、ほかの向きより緩く「目標範囲内」と判定する", () => {
+    const item = (values: Nutrients) => ({
+      food: makunouchi,
+      quantity: 1,
+      basis: { unit: "serving" as const, refAmount: 1, ref: values },
+      amount: 1,
+      nutrients: values,
+    });
+    // P +8g（この食事の許容 5g の 1.6 倍）・F −6g（許容 4g の 1.5 倍）でも、多めのたんぱく質・少なめの脂質なので範囲内
+    assert.equal(evaluateCombination([item(n(700, 58, 12, 90))], context).fit, "within");
+    // たんぱく質が同じだけ足りない場合は範囲内にしない
+    assert.equal(evaluateCombination([item(n(700, 42, 18, 90))], context).fit, "near");
+    // 脂質が同じだけ多い場合も範囲内にしない
+    assert.equal(evaluateCombination([item(n(700, 50, 24, 90))], context).fit, "near");
+  });
+
+  test("1 日の範囲内でも、この食事の目安を大きく超える栄養素があれば「一部超過」", () => {
+    const values = n(700, 50, 30, 90); // 脂質 +12g（この食事の許容 4g の 3 倍）
+    const result = evaluateCombination(
+      [{ food: makunouchi, quantity: 1, basis: { unit: "serving", refAmount: 1, ref: values }, amount: 1, nutrients: values }],
+      context,
+    );
+    assert.equal(result.fit, "over");
+    assert.deepEqual(result.dayOverBy, {});
+    assert.deepEqual(result.mealOff, { fatG: "over" });
+  });
+
+  test("大きく足りないだけなら「少なめ」", () => {
+    const values = n(400, 20, 10, 50);
+    const result = evaluateCombination(
+      [{ food: makunouchi, quantity: 1, basis: { unit: "serving", refAmount: 1, ref: values }, amount: 1, nutrients: values }],
+      context,
+    );
+    assert.equal(result.fit, "under");
+    // 脂質の −8g（許容 4g の 2 倍）は、少なめの脂質を緩く見るので目安からのずれとして出さない
+    assert.deepEqual(result.mealOff, { energyKcal: "under", proteinG: "under", carbsG: "under" });
   });
 
   test("1 日の目標＋許容範囲を超えると「一部超過」で、目標からの超過量を出す", () => {

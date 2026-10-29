@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { IconCheck, IconStore, IconUtensils } from "@/components/ui/icons";
+import { IconCheck, IconChevronDown, IconExternal, IconStore, IconUtensils } from "@/components/ui/icons";
 import { Notice } from "@/components/ui/notice";
 import { Sheet } from "@/components/ui/sheet";
 import { cn } from "@/lib/cn";
@@ -24,7 +24,7 @@ import {
   type SuggestionFit,
 } from "@/lib/nutrition/suggest";
 import type { FoodRow } from "@/types/app";
-import { VerificationBadge } from "./food-source-badge";
+import { FoodPriceLine, VerificationBadge } from "./food-source-badge";
 import { MealTypePicker } from "./item-editor";
 import { MacroInline, NUTRIENT_COLORS } from "./nutrition-summary";
 
@@ -406,6 +406,7 @@ function SuggestionCard({
 }) {
   const brand = suggestion.items[0]?.food.brand ?? "";
   const overKeys = NUTRIENT_KEYS.filter((key) => suggestion.dayOverBy[key] !== undefined);
+  const offKeys = NUTRIENT_KEYS.filter((key) => suggestion.mealOff[key] !== undefined);
   const verifiedDates = suggestion.items.map((i) => i.food.verified_on).filter((d): d is string => Boolean(d)).sort();
   const latest = verifiedDates[verifiedDates.length - 1];
 
@@ -468,6 +469,17 @@ function SuggestionCard({
           {overKeys.map((key) => `${key === "energyKcal" ? "カロリー" : NUTRIENT_SHORT[key]} ${formatSignedNutrient(key, suggestion.dayOverBy[key] ?? 0)}`).join("、")}
         </p>
       ) : null}
+      {offKeys.length > 0 ? (
+        <p className="mt-1.5 text-xs text-ash">
+          この食事の目安より:{" "}
+          {offKeys
+            .map(
+              (key) =>
+                `${key === "energyKcal" ? "カロリー" : NUTRIENT_SHORT[key]} ${formatSignedNutrient(key, suggestion.mealDiff[key])}（${suggestion.mealOff[key] === "over" ? "多め" : "少なめ"}）`,
+            )
+            .join("、")}
+        </p>
+      ) : null}
 
       <div className="mt-2.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-ash">
         {suggestion.allVerified ? <VerificationBadge status="verified" /> : <VerificationBadge status="unverified" />}
@@ -477,6 +489,33 @@ function SuggestionCard({
         </span>
         {suggestion.priceYen != null ? <span>・参考価格 ¥{suggestion.priceYen.toLocaleString("ja-JP")}</span> : null}
       </div>
+
+      <details className="group mt-1.5 text-[11px] text-ash">
+        <summary className="inline-flex min-h-8 cursor-pointer list-none items-center gap-1 font-bold select-none [&::-webkit-details-marker]:hidden">
+          <IconChevronDown size={14} className="transition-transform group-open:rotate-180" />
+          出典・注記を見る
+        </summary>
+        <ul className="mt-1 space-y-2 rounded-xl bg-iron px-3 py-2.5">
+          {suggestion.items.map((item) => (
+            <li key={item.food.id} className="leading-relaxed">
+              <p className="font-bold text-chalk/85">{item.food.name}</p>
+              {item.food.source_note ? <p>{item.food.source_note}</p> : null}
+              <FoodPriceLine food={{ price_yen: item.food.price_yen, price_note: item.food.price_note ?? null }} />
+              {item.food.source_url ? (
+                <a
+                  href={item.food.source_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-0.5 text-plate-blue-bright underline underline-offset-2"
+                >
+                  出典を開く
+                  <IconExternal size={12} />
+                </a>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      </details>
 
       <div className="mt-3">
         {added ? (

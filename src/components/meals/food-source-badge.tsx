@@ -63,3 +63,20 @@ export function FoodSourceLine({
     </span>
   );
 }
+
+/** 参考価格（公式ページに価格がある商品だけ。条件は price_note） */
+export function FoodPriceLine({
+  food,
+  className,
+}: {
+  food: Pick<FoodRow, "price_yen" | "price_note">;
+  className?: string;
+}) {
+  if (food.price_yen == null && !food.price_note) return null;
+  return (
+    <p className={className}>
+      {food.price_yen != null ? `参考価格 ¥${food.price_yen.toLocaleString("ja-JP")}` : "価格"}
+      {food.price_note ? (food.price_yen != null ? `（${food.price_note}）` : `: ${food.price_note}`) : ""}
+    </p>
+  );
+}

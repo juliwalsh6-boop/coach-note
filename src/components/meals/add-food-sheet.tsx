@@ -25,7 +25,7 @@ import { formatNutrient } from "@/lib/nutrition/format";
 import { MEAL_TYPE_LABELS, type MealType } from "@/lib/nutrition/meal-types";
 import { itemNutrients } from "@/lib/nutrition/rows";
 import type { FoodRow, MealItem } from "@/types/app";
-import { FoodSourceLine } from "./food-source-badge";
+import { FoodPriceLine, FoodSourceLine } from "./food-source-badge";
 import { AmountField, MealTypePicker, NameField, NutrientFields } from "./item-editor";
 import { itemAmountText } from "./meal-item-row";
 import { MacroInline } from "./nutrition-summary";
@@ -429,6 +429,8 @@ function FoodDetail({
           {food ? `${food.serving_label}あたりの栄養値（${food.nutrient_basis === "per_100g" ? "100gあたりの値から換算" : "1食分の値"}）` : "前回と同じ内容"}
         </p>
         {food ? <FoodSourceLine food={food} className="mt-1.5" /> : null}
+        {food?.source_note ? <p className="mt-1.5 text-xs leading-relaxed text-ash">{food.source_note}</p> : null}
+        {food ? <FoodPriceLine food={food} className="mt-1 text-xs text-ash" /> : null}
       </div>
 
       {detail.editableValues ? <NameField draft={draft} onChange={onChange} error={nameError} /> : null}

@@ -37,5 +37,13 @@ for f in supabase/data/*.sql; do
   echo "  $second foods loaded"
 done
 
+# 転記ミスの検出: エネルギーが P・F・C から計算した値（4・9・4 kcal/g）と大きく違う商品が無いこと
+bad="$(psql -d "$DB" -tA -c "
+  select code || ' (' || energy_kcal || ' kcal vs ' || round(4 * protein_g + 9 * fat_g + 4 * carbs_g, 1) || ')'
+  from public.foods
+  where code is not null
+    and abs(energy_kcal - (4 * protein_g + 9 * fat_g + 4 * carbs_g)) > greatest(15, energy_kcal * 0.08)")"
+[ -z "$bad" ] || { echo "  energy does not match P/F/C:"; echo "$bad"; exit 1; }
+
 dropdb "$DB"
 echo "SQL tests: ALL PASSED"

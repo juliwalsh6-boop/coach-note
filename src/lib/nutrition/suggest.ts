@@ -36,6 +36,10 @@ export type SuggestFood = FoodNutritionFields & {
   price_yen: number | null;
   /** 栄養情報の最終確認日（表示用） */
   verified_on?: string | null;
+  /** 出典・注記（表示用） */
+  source_url?: string | null;
+  source_note?: string | null;
+  price_note?: string | null;
 };
 
 export type SuggestionItem = {
@@ -68,6 +72,8 @@ export type Suggestion = {
   afterRemaining: Nutrients;
   /** 1 日の目標＋許容範囲を超える栄養素と、目標からの超過量 */
   dayOverBy: Partial<Nutrients>;
+  /** この食事の目安から許容範囲を超えてずれている栄養素（多め / 少なめ） */
+  mealOff: Partial<Record<NutrientKey, "over" | "under">>;
   fit: SuggestionFit;
   score: number;
   /** 全品が確認済みの商品データか */
@@ -184,8 +190,12 @@ export function mealBudget(target: Nutrients, intake: Nutrients, share: number):
   return scale(nonNegative(subtractNutrients(target, intake)), safeShare);
 }
 
+/**
+ * この食事の許容範囲。1 日の許容範囲を配分の平方根で縮める（食事ごとのずれは打ち消し合うことが多いので、
+ * 配分に比例させるほどは厳しくしない）。配分が小さくても 1 日の半分より狭くはしない。
+ */
 export function mealToleranceFor(tolerance: Nutrients, share: number): Nutrients {
-  const factor = Math.max(Math.min(1, share), 0.5);
+  const factor = Math.max(Math.sqrt(Math.min(1, Math.max(0, share))), 0.5);
   return {
     energyKcal: Math.max(tolerance.energyKcal * factor, MIN_MEAL_TOLERANCE.energyKcal),
     proteinG: Math.max(tolerance.proteinG * factor, MIN_MEAL_TOLERANCE.proteinG),
@@ -214,6 +224,7 @@ export function evaluateCombination(
   let worstShortfall = 0;
   let worstExcess = 0;
   const dayOverBy: Partial<Nutrients> = {};
+  const mealOff: Partial<Record<NutrientKey, "over" | "under">> = {};
 
   for (const key of NUTRIENT_KEYS) {
     const tol = context.mealTolerance[key];
@@ -221,13 +232,20 @@ export function evaluateCombination(
     const weight = WEIGHTS[key];
     if (x > 0) {
       score += weight.over * x * x + (x > 1 ? weight.over * (x - 1) * 2 : 0);
-      worstExcess = Math.max(worstExcess, x);
     } else {
       score += weight.under * x * x;
-      worstShortfall = Math.max(worstShortfall, -x);
     }
-    if (Math.abs(x) > 1) allWithin = false;
-    if (Math.abs(x) > 2) allNear = false;
+    // 表示ラベル用: たんぱく質の多め・脂質の少なめは、この食事の目安からずれても問題になりにくいので半分に見る
+    // （1 日の目標＋許容範囲を超える場合は下の判定で「一部超過」になる）
+    const lenient = (key === "proteinG" && x > 0) || (key === "fatG" && x < 0);
+    const xFit = lenient ? x / 2 : x;
+    if (xFit > 0) worstExcess = Math.max(worstExcess, xFit);
+    else worstShortfall = Math.max(worstShortfall, -xFit);
+    if (Math.abs(xFit) > 1) {
+      allWithin = false;
+      mealOff[key] = xFit > 0 ? "over" : "under";
+    }
+    if (Math.abs(xFit) > 2) allNear = false;
 
     // 1 日の目標＋許容範囲を超えるか
     const dayExcess = after[key] - (context.target[key] + context.tolerance[key]);
@@ -243,11 +261,12 @@ export function evaluateCombination(
   const unverified = items.filter((i) => i.food.verification_status !== "verified").length;
   score += UNVERIFIED_PENALTY * unverified;
 
+  // 一部超過: 1 日の目標＋許容範囲を超える、またはこの食事の目安を大きく（許容範囲の 2 倍より）超える
   let fit: SuggestionFit;
   if (Object.keys(dayOverBy).length > 0) fit = "over";
   else if (allWithin) fit = "within";
   else if (allNear) fit = "near";
-  else fit = worstShortfall >= worstExcess ? "under" : "near";
+  else fit = worstExcess > 2 ? "over" : "under";
 
   const prices = items.map((i) => (i.food.price_yen == null ? null : i.food.price_yen * i.quantity));
   const priceYen = prices.every((p): p is number => p !== null) ? prices.reduce((a, b) => a + b, 0) : null;
@@ -258,6 +277,7 @@ export function evaluateCombination(
     mealDiff,
     afterRemaining,
     dayOverBy,
+    mealOff,
     fit,
     score,
     allVerified: unverified === 0,
