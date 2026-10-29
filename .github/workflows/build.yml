@@ -44,6 +44,12 @@ jobs:
         run: npm test 2>&1 | tee test.log
       - name: Build
         run: npm run build 2>&1 | tee build.log
+      - name: Show summary
+        if: success()
+        run: |
+          # 成功したときも、単体テストの件数を注釈に残す（Actions の画面から確認できるように）
+          body=$(grep -E '^# (tests|suites|pass|fail|cancelled|skipped|todo)' test.log | awk 'BEGIN { ORS = "%0A" } { print }')
+          echo "::notice title=unit tests::${body}"
       - name: Show failure details
         if: failure()
         run: |
@@ -78,6 +84,11 @@ jobs:
       - uses: actions/checkout@v5
       - name: SQL tests
         run: bash supabase/tests/run.sh 2>&1 | tee db-test.log
+      - name: Show summary
+        if: success()
+        run: |
+          body=$(grep -vE '^migrate:' db-test.log | awk 'BEGIN { ORS = "%0A" } { print }')
+          echo "::notice title=db tests::${body}"
       - name: Show failure details
         if: failure()
         run: |
@@ -134,6 +145,11 @@ jobs:
             sleep 1
           done
           npx playwright test -c e2e/playwright.config.ts 2>&1 | tee e2e.log
+      - name: Show summary
+        if: success()
+        run: |
+          body=$(grep -E '✓|✘|passed|failed|skipped|flaky' e2e.log | sed -e 's/%/%25/g' | awk 'BEGIN { ORS = "%0A" } { print }')
+          echo "::notice title=e2e tests::${body}"
       - name: Show failure details
         if: failure()
         run: |
