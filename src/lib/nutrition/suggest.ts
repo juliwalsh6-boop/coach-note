@@ -34,6 +34,8 @@ export type SuggestFood = FoodNutritionFields & {
   meal_role: MealRole;
   verification_status: VerificationStatus;
   price_yen: number | null;
+  /** 栄養情報の最終確認日（表示用） */
+  verified_on?: string | null;
 };
 
 export type SuggestionItem = {
