@@ -951,7 +951,7 @@ as $$
   order by d.day;
 $$;
 
--- トレーナーの「食事」一覧: 担当クライアントごとの目標・指定日の摂取量・最終記録・未読の返信・体重
+-- トレーナーの「食事」一覧: 担当クライアントごとの目標・指定日の摂取量・最終記録・未読 / 未返信のコメント・体重
 create or replace function public.get_trainer_nutrition_overview(p_date date)
 returns table (
   client_id uuid,
@@ -973,6 +973,7 @@ returns table (
   photo_count integer,
   last_logged_at timestamptz,
   unread_comment_count integer,
+  awaiting_reply_count integer,
   latest_weight_kg numeric,
   latest_weight_date date
 )
@@ -1001,6 +1002,7 @@ as $$
     coalesce(ph.photo_count, 0),
     l.last_logged_at,
     coalesce(u.unread_count, 0),
+    coalesce(a.awaiting_count, 0),
     w.body_weight_kg,
     w.checkin_date
   from public.trainer_clients tc
@@ -1039,6 +1041,17 @@ as $$
       from public.meal_comments mc
      where mc.client_id = tc.client_id and mc.author_id = tc.client_id and mc.read_at is null
   ) u on true
+  -- 未返信: 最後のコメントがクライアントからの食事の数（既読にしても、返信するまでは数える）
+  left join lateral (
+    select count(*)::integer as awaiting_count
+      from (
+        select distinct on (mc.meal_id) mc.author_id
+          from public.meal_comments mc
+         where mc.client_id = tc.client_id
+         order by mc.meal_id, mc.created_at desc, mc.id desc
+      ) last_comment
+     where last_comment.author_id = tc.client_id
+  ) a on true
   left join lateral (
     select c.body_weight_kg, c.checkin_date
       from public.checkins c

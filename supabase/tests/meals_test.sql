@@ -459,6 +459,12 @@ select tests.throws(
   format('insert into public.meal_comments (meal_id, client_id, author_id, body) values (%L, %L, %L, %L)', :'lunch', tests.uid('c1'), tests.uid('t2'), 'x'),
   'T2 は T1 のクライアントの食事にコメントできない', '42501');
 
+-- 実際はコメントごとに別のリクエスト（別のトランザクション）なので、投稿時刻をずらしておく
+reset role;
+update public.meal_comments set created_at = now() - interval '10 minutes' where id = :'comment_t1';
+update public.meal_comments set created_at = now() - interval '5 minutes' where id = :'comment_c1';
+set role authenticated;
+
 -- 既読
 select tests.login('t1');
 select tests.ok(
@@ -470,10 +476,19 @@ select tests.login('c1');
 select tests.ok(public.mark_meal_comments_read(array[:'lunch'::uuid]) = 1, 'C1 はトレーナーのコメントを既読にできる');
 select tests.ok((select read_at from public.meal_comments where id = :'comment_c1') is null, '自分の書いたコメントは既読にならない');
 select tests.login('t1');
+select tests.ok(
+  (select awaiting_reply_count from public.get_trainer_nutrition_overview(current_date) where client_id = tests.uid('c1')) = 1,
+  '最後のコメントがクライアントの返信なら「未返信」に数える');
 select tests.ok(public.mark_meal_comments_read(array[:'lunch'::uuid]) = 1, 'T1 はクライアントの返信を既読にできる');
 select tests.ok(
-  (select unread_comment_count from public.get_trainer_nutrition_overview(current_date) where client_id = tests.uid('c1')) = 0,
-  '既読にすると未読の返信数が 0 になる');
+  (select unread_comment_count = 0 and awaiting_reply_count = 1
+     from public.get_trainer_nutrition_overview(current_date) where client_id = tests.uid('c1')),
+  '既読にすると未読は 0 になるが、返信するまでは未返信に数える');
+insert into public.meal_comments (meal_id, client_id, author_id, body)
+values (:'lunch', tests.uid('c1'), tests.uid('t1'), 'いいですね。この調子で！');
+select tests.ok(
+  (select awaiting_reply_count from public.get_trainer_nutrition_overview(current_date) where client_id = tests.uid('c1')) = 0,
+  'トレーナーが返信すると未返信は 0 になる');
 
 select tests.login('c1');
 select tests.affects(format('delete from public.meal_comments where id = %L', :'comment_t1'), 0, 'クライアントはトレーナーのコメントを削除できない');

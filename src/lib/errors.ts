@@ -68,7 +68,14 @@ const PG_CODE_MESSAGES: Record<string, string> = {
   "22P02": "入力の形式が正しくありません。",
   PGRST116: "データが見つかりません。",
   PGRST301: "ログインの有効期限が切れました。もう一度ログインしてください。",
+  // テーブル・関数が無い（データベースの更新前に画面だけ新しくなった場合）
+  PGRST202: "この機能を使うには、データベースの更新が必要です。管理者に連絡してください。",
+  PGRST205: "この機能を使うには、データベースの更新が必要です。管理者に連絡してください。",
+  "42P01": "この機能を使うには、データベースの更新が必要です。管理者に連絡してください。",
+  "42883": "この機能を使うには、データベースの更新が必要です。管理者に連絡してください。",
 };
+
+const MISSING_SCHEMA_CODES = new Set(["PGRST202", "PGRST205", "42P01", "42883"]);
 
 const NETWORK_PATTERNS = [/failed to fetch/i, /load failed/i, /networkerror/i, /network request failed/i, /fetch failed/i];
 
@@ -84,6 +91,15 @@ export function isNetworkError(error: unknown): boolean {
   const e = asErrorLike(error);
   const message = typeof e?.message === "string" ? e.message : "";
   return NETWORK_PATTERNS.some((p) => p.test(message));
+}
+
+/**
+ * テーブル・関数がまだ無いことによるエラーか（食事管理のマイグレーションを適用する前など）。
+ * 新しい画面はこのとき、落ちずに「データベースの更新が必要」と案内する。
+ */
+export function isMissingSchemaError(error: unknown): boolean {
+  const e = asErrorLike(error);
+  return typeof e?.code === "string" && MISSING_SCHEMA_CODES.has(e.code);
 }
 
 export function toErrorMessage(error: unknown, fallback: string = DEFAULT_ERROR_MESSAGE): string {

@@ -1,9 +1,12 @@
 import type { Metadata } from "next";
 import { MealDayClient } from "@/components/meals/meal-day-client";
+import { MealsSetupNotice } from "@/components/meals/meals-setup-notice";
+import { PageHeader } from "@/components/ui/page-header";
 import { requireRole } from "@/lib/auth";
 import { getMealDay, getNutritionDays } from "@/lib/data/meals";
 import { listMyTrainers } from "@/lib/data/profiles";
 import { addDaysISO, currentHour, isValidISODate, todayISO } from "@/lib/dates";
+import { isMissingSchemaError } from "@/lib/errors";
 import { defaultMealType } from "@/lib/nutrition/meal-types";
 
 export const metadata: Metadata = { title: "食事" };
@@ -22,11 +25,24 @@ export default async function ClientMealsPage({
   const requested = typeof rawDate === "string" && isValidISODate(rawDate) ? rawDate : today;
   const date = requested > today || requested < addDaysISO(today, -MAX_PAST_DAYS) ? today : requested;
 
-  const [meals, days, trainers] = await Promise.all([
-    getMealDay(supabase, userId, date),
-    getNutritionDays(supabase, userId, addDaysISO(date, -6), date),
-    listMyTrainers(supabase),
-  ]);
+  let data;
+  try {
+    data = await Promise.all([
+      getMealDay(supabase, userId, date),
+      getNutritionDays(supabase, userId, addDaysISO(date, -6), date),
+      listMyTrainers(supabase),
+    ]);
+  } catch (e) {
+    // データベースの更新前（食事のテーブルが無い）なら、落とさずに案内だけ出す
+    if (!isMissingSchemaError(e)) throw e;
+    return (
+      <>
+        <PageHeader title="食事" />
+        <MealsSetupNotice role="client" />
+      </>
+    );
+  }
+  const [meals, days, trainers] = data;
 
   return (
     <MealDayClient

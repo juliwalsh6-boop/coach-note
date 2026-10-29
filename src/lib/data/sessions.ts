@@ -128,6 +128,20 @@ export async function listSessions(db: DB, clientId: string, limit = 30): Promis
   }));
 }
 
+/** 期間内のセッション（実施日の古い順）。食事の画面でトレーニングした日を出すために使う */
+export async function listSessionsBetween(db: DB, clientId: string, from: string, to: string): Promise<WorkoutSession[]> {
+  const { data, error } = await db
+    .from("workout_sessions")
+    .select("*")
+    .eq("client_id", clientId)
+    .gte("performed_date", from)
+    .lte("performed_date", to)
+    .order("performed_date", { ascending: true })
+    .order("started_at", { ascending: true });
+  if (error) throw error;
+  return data ?? [];
+}
+
 /** 指定日以降のセッション（ホーム画面で「実施中」「完了」を出すため） */
 export async function listRecentSessions(db: DB, clientId: string, sinceDate: string): Promise<WorkoutSession[]> {
   const { data, error } = await db

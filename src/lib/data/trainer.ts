@@ -1,9 +1,16 @@
-import type { ClientInvite, DashboardRow } from "@/types/app";
+import type { ClientInvite, DashboardRow, NutritionOverviewRow } from "@/types/app";
 import type { DB } from "./db";
 
 /** トレーナーのホーム: 担当クライアント + 指定日のチェックイン + 直近のトレーニング */
 export async function getDashboard(db: DB, date: string): Promise<DashboardRow[]> {
   const { data, error } = await db.rpc("get_trainer_dashboard", { p_date: date });
+  if (error) throw error;
+  return data ?? [];
+}
+
+/** トレーナーの「食事」一覧: 担当クライアントごとの目標・指定日の摂取量・最終記録・未読の返信・体重 */
+export async function getNutritionOverview(db: DB, date: string): Promise<NutritionOverviewRow[]> {
+  const { data, error } = await db.rpc("get_trainer_nutrition_overview", { p_date: date });
   if (error) throw error;
   return data ?? [];
 }

@@ -19,6 +19,7 @@ export function MealSection({
   onDeletePhoto,
   comments,
   emptyText = "まだ記録がありません",
+  showAiDetail = false,
 }: {
   mealType: MealType;
   meal: MealWithDetails | null;
@@ -32,6 +33,8 @@ export function MealSection({
   /** コメント欄（呼び出し側で組み立てる） */
   comments?: React.ReactNode;
   emptyText?: string;
+  /** AI の推定値・確度も出す（トレーナーの画面） */
+  showAiDetail?: boolean;
 }) {
   const label = MEAL_TYPE_LABELS[mealType];
   const items = meal?.items ?? [];
@@ -79,7 +82,7 @@ export function MealSection({
         <ul className="mt-1 divide-y divide-line">
           {items.map((item) => (
             <li key={item.id}>
-              <MealItemRow item={item} onEdit={onEditItem} />
+              <MealItemRow item={item} onEdit={onEditItem} showAiDetail={showAiDetail} />
             </li>
           ))}
         </ul>

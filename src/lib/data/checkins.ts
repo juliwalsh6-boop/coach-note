@@ -66,3 +66,16 @@ export async function getLatestBodyWeight(db: DB, clientId: string): Promise<num
   if (error) throw error;
   return data?.body_weight_kg ?? null;
 }
+
+/** 期間内のチェックイン（日付の古い順）。食事の画面で体重の推移を出すために使う */
+export async function listCheckinsBetween(db: DB, clientId: string, from: string, to: string): Promise<Checkin[]> {
+  const { data, error } = await db
+    .from("checkins")
+    .select("*")
+    .eq("client_id", clientId)
+    .gte("checkin_date", from)
+    .lte("checkin_date", to)
+    .order("checkin_date", { ascending: true });
+  if (error) throw error;
+  return data ?? [];
+}

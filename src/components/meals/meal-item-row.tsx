@@ -1,6 +1,7 @@
 import { cn } from "@/lib/cn";
+import { AI_CONFIDENCE_LABELS, parseAiEstimate } from "@/lib/nutrition/ai-estimate";
 import { formatAmount } from "@/lib/nutrition/foods";
-import { formatNutrient } from "@/lib/nutrition/format";
+import { formatNutrient, formatPfc } from "@/lib/nutrition/format";
 import { itemNutrients, itemUnit } from "@/lib/nutrition/rows";
 import type { MealItem } from "@/types/app";
 import { MacroInline } from "./nutrition-summary";
@@ -30,8 +31,35 @@ export function itemAmountText(item: Pick<MealItem, "unit" | "amount" | "serving
   return amount;
 }
 
-/** 食べたもの 1 品（タップで編集できる場合はボタン） */
-export function MealItemRow({ item, onEdit }: { item: MealItem; onEdit?: (item: MealItem) => void }) {
+/** AI の推定値（解析した時点の値）。修正された品で、元の推定と見比べるために出す */
+function AiEstimateLine({ item }: { item: MealItem }) {
+  const estimate = item.origin === "ai_photo" ? parseAiEstimate(item.ai_estimate) : null;
+  if (!estimate) return null;
+  return (
+    <p className="mt-1 text-[11px] leading-relaxed text-ash">
+      {item.ai_adjusted ? "AIの推定: " : ""}
+      {item.ai_adjusted && estimate.name !== item.name ? `${estimate.name} ` : ""}
+      {item.ai_adjusted ? `${formatNutrient("energyKcal", estimate.energyKcal)}kcal・${formatPfc(estimate)}` : ""}
+      {item.ai_adjusted && estimate.weightG != null ? `（${estimate.weightG}g）` : ""}
+      {estimate.confidence ? (
+        <span className={cn(item.ai_adjusted && "ml-1.5", estimate.confidence === "low" && "text-plate-yellow")}>
+          {AI_CONFIDENCE_LABELS[estimate.confidence]}
+        </span>
+      ) : null}
+    </p>
+  );
+}
+
+/** 食べたもの 1 品（タップで編集できる場合はボタン）。showAiDetail で AI の推定値・確度も出す（トレーナー用） */
+export function MealItemRow({
+  item,
+  onEdit,
+  showAiDetail = false,
+}: {
+  item: MealItem;
+  onEdit?: (item: MealItem) => void;
+  showAiDetail?: boolean;
+}) {
   const values = itemNutrients(item);
   const content = (
     <>
@@ -44,6 +72,7 @@ export function MealItemRow({ item, onEdit }: { item: MealItem; onEdit?: (item: 
         <div className="mt-1 flex flex-wrap items-center gap-1.5">
           <ItemOriginBadge item={item} />
         </div>
+        {showAiDetail ? <AiEstimateLine item={item} /> : null}
       </div>
       <div className="shrink-0 text-right">
         <p className="num text-[17px] leading-tight font-bold">

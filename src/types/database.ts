@@ -989,6 +989,7 @@ export type Database = {
           photo_count: number;
           last_logged_at: string | null;
           unread_comment_count: number;
+          awaiting_reply_count: number;
           latest_weight_kg: number | null;
           latest_weight_date: string | null;
         }[];

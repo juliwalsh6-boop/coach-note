@@ -7,6 +7,8 @@ import { ConditionBadge } from "@/components/condition/condition-badge";
 import { MetricStrip } from "@/components/condition/metric-strip";
 import { CheckinHistory } from "@/components/history/checkin-history";
 import { SessionList } from "@/components/history/session-list";
+import { MealsSetupNotice } from "@/components/meals/meals-setup-notice";
+import { TrainerMealDay } from "@/components/meals/trainer-meal-day";
 import { PlanExerciseList, planDateLabel } from "@/components/plans/plan-card";
 import { RemoveClientButton } from "@/components/trainer/remove-client-button";
 import { LinkButton } from "@/components/ui/button";
@@ -16,19 +18,24 @@ import { PageHeader } from "@/components/ui/page-header";
 import { LinkTabs } from "@/components/ui/tabs";
 import { requireRole } from "@/lib/auth";
 import { CONDITION_RULE_TEXT, evaluateCondition, toMetricValues } from "@/lib/condition";
-import { getCheckin, listCheckins } from "@/lib/data/checkins";
+import { getCheckin, listCheckins, listCheckinsBetween } from "@/lib/data/checkins";
 import { listComments } from "@/lib/data/comments";
+import { getMealDay, getNutritionDays } from "@/lib/data/meals";
 import { listPlansForClient } from "@/lib/data/plans";
 import { getClientForTrainer } from "@/lib/data/profiles";
-import { listSessions } from "@/lib/data/sessions";
+import { listSessions, listSessionsBetween } from "@/lib/data/sessions";
 import type { DB } from "@/lib/data/db";
 import { formatKg } from "@/lib/format";
-import { todayISO } from "@/lib/dates";
+import { addDaysISO, isValidISODate, todayISO } from "@/lib/dates";
+import { isMissingSchemaError } from "@/lib/errors";
 import { isUuid } from "@/lib/ids";
 
 export const metadata: Metadata = { title: "クライアント" };
 
-const TABS = ["plans", "sessions", "condition", "comments"] as const;
+const TABS = ["plans", "meals", "sessions", "condition", "comments"] as const;
+
+/** 食事の記録を見返せる期間（日）。クライアントの画面・DB と合わせる */
+const MAX_PAST_DAYS = 400;
 type TabKey = (typeof TABS)[number];
 
 function isTab(value: unknown): value is TabKey {
@@ -42,7 +49,7 @@ export default async function TrainerClientPage({
   params: Promise<{ clientId: string }>;
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const [{ clientId }, { tab }] = await Promise.all([params, searchParams]);
+  const [{ clientId }, { tab, date: rawDate }] = await Promise.all([params, searchParams]);
   if (!isUuid(clientId)) notFound();
   const activeTab: TabKey = isTab(tab) ? tab : "plans";
 
@@ -93,6 +100,7 @@ export default async function TrainerClientPage({
         activeKey={activeTab}
         items={[
           { key: "plans", label: "メニュー", href: base },
+          { key: "meals", label: "食事", href: `${base}?tab=meals` },
           { key: "sessions", label: "記録", href: `${base}?tab=sessions` },
           { key: "condition", label: "体調", href: `${base}?tab=condition` },
           { key: "comments", label: "コメント", href: `${base}?tab=comments` },
@@ -100,6 +108,16 @@ export default async function TrainerClientPage({
       />
 
       {activeTab === "plans" ? <PlansTab supabase={supabase} clientId={clientId} today={today} /> : null}
+      {activeTab === "meals" ? (
+        <MealsTab
+          supabase={supabase}
+          clientId={clientId}
+          clientName={client.display_name}
+          trainerId={userId}
+          today={today}
+          requestedDate={typeof rawDate === "string" ? rawDate : null}
+        />
+      ) : null}
       {activeTab === "sessions" ? <SessionsTab supabase={supabase} clientId={clientId} /> : null}
       {activeTab === "condition" ? <ConditionTab supabase={supabase} clientId={clientId} /> : null}
       {activeTab === "comments" ? <CommentsTab supabase={supabase} clientId={clientId} trainerId={userId} /> : null}
@@ -156,6 +174,59 @@ async function PlansTab({ supabase, clientId, today }: { supabase: DB; clientId:
       )}
     </div>
   );
+}
+
+async function MealsTab({
+  supabase,
+  clientId,
+  clientName,
+  trainerId,
+  today,
+  requestedDate,
+}: {
+  supabase: DB;
+  clientId: string;
+  clientName: string;
+  trainerId: string;
+  today: string;
+  requestedDate: string | null;
+}) {
+  let date = today;
+  if (
+    requestedDate !== null &&
+    isValidISODate(requestedDate) &&
+    requestedDate <= today &&
+    requestedDate >= addDaysISO(today, -MAX_PAST_DAYS)
+  ) {
+    date = requestedDate;
+  }
+  const from = addDaysISO(date, -6);
+
+  try {
+    const [meals, days, checkins, sessions] = await Promise.all([
+      getMealDay(supabase, clientId, date),
+      getNutritionDays(supabase, clientId, from, date),
+      listCheckinsBetween(supabase, clientId, from, date),
+      listSessionsBetween(supabase, clientId, from, date),
+    ]);
+    return (
+      <TrainerMealDay
+        key={date}
+        clientId={clientId}
+        clientName={clientName}
+        trainerId={trainerId}
+        date={date}
+        today={today}
+        initialMeals={meals}
+        days={days}
+        weights={checkins.flatMap((c) => (c.body_weight_kg != null ? [{ date: c.checkin_date, kg: Number(c.body_weight_kg) }] : []))}
+        sessions={sessions}
+      />
+    );
+  } catch (e) {
+    if (isMissingSchemaError(e)) return <MealsSetupNotice role="trainer" />;
+    throw e;
+  }
 }
 
 async function SessionsTab({ supabase, clientId }: { supabase: DB; clientId: string }) {
